@@ -1,0 +1,8 @@
+node_modules
+.git
+.gitignore
+.firebase
+firebase.json
+.firebaserc
+npm-debug.log
+public/ # 由於前端已部署，後端容器不需要包含前端靜態檔案

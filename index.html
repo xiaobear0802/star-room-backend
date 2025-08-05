@@ -1,0 +1,326 @@
+<!DOCTYPE html> 
+<html lang="zh-Hant"> 
+<head> 
+    <meta charset="UTF-8"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>星杯傳說房間系統</title> 
+    <link rel="stylesheet" href="style.css">
+    <!-- 引入 Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style> 
+        /* General body styling */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align items to the top */
+            min-height: 100vh; /* Ensure it takes full viewport height */
+        }
+
+        /* Main container for the two columns */
+        #main-app-container {
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 20px; /* Space between columns */
+            max-width: 1200px; /* Max width for the whole app */
+            width: 100%;
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        /* Left column (room creation/joining) */
+        #room-system {
+            flex: 1; /* Take available space */
+            min-width: 300px; /* Minimum width for the left column */
+            padding: 20px;
+            border-right: 1px solid #eee; /* Separator line */
+            box-sizing: border-box; /* Include padding in width */
+        }
+
+        /* Right column (game room details or public list) */
+        #game-room-display { 
+            flex: 2; /* Take more space than the left column */
+            min-width: 400px; /* Minimum width for the right column */
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex; /* Use flex for internal layout of right column */
+            flex-direction: column;
+            gap: 15px;
+            position: relative; /* For absolute positioning of empty state */
+        }
+
+        /* Styling for the room creation form inputs */
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input[type="text"],
+        .input-group input[type="password"],
+        .input-group textarea {
+            width: calc(100% - 22px); /* Adjust for padding and border */
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .input-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        /* Button group styling */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .button-group button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007bff; /* Blue */
+            color: white;
+            border: none;
+            transition: background-color 0.3s ease;
+            flex: 1; /* Make buttons take equal space */
+            min-width: 120px; /* Minimum width for buttons */
+        }
+        .button-group button:hover {
+            background-color: #0056b3;
+        }
+        #deleteRoomButton {
+            background-color: #dc3545; /* Red */
+        }
+        #deleteRoomButton:hover {
+            background-color: #c82333;
+        }
+        #startGameButton {
+            background-color: #28a745; /* Green */
+        }
+        #startGameButton:hover {
+            background-color: #218838;
+        }
+        /* Removed #transferOwnershipButton styling as it's no longer a standalone button */
+
+        /* Game room specific styling (right panel) */
+        #game-room-display h1 {
+            text-align: center;
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        #game-room-display h2, #game-room-display h3 {
+            color: #555;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            margin-top: 20px;
+        }
+        #game-room-display ul {
+            list-style: none;
+            padding: 0;
+        }
+        #game-room-display li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #game-room-display li:last-child {
+            border-bottom: none;
+        }
+        
+        /* Player ID Colors */
+        /* Corrected class name and added specificity */
+        .player-item .player-owner-pink { 
+            color: #ff69b4; /* 粉紅色 */
+            font-weight: bold;
+        }
+        /* Default player color (not owner) */
+        .player-item span {
+            color: #333; /* Default black/dark grey */
+            font-weight: normal;
+        }
+        /* Ensure owner color overrides default if needed (already covered by specificity above) */
+        /* .player-owner-pink span {
+            color: #ff69b4;
+        } */
+
+
+        #game-room-display .remove-player-btn {
+            background-color: #f44336;
+            margin-left: 10px;
+            padding: 5px 10px;
+            font-size: 0.9em;
+        }
+        /* Style for the new inline transfer ownership button */
+        #game-room-display .transfer-owner-btn {
+            background-color: #ff9800; /* Orange */
+            margin-left: 10px;
+            padding: 5px 10px;
+            font-size: 0.9em;
+        }
+        #game-room-display .transfer-owner-btn:hover {
+            background-color: #e68a00;
+        }
+
+
+        /* Game rules display */
+        #gameRulesDisplayArea {
+            background-color: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 15px;
+            overflow-y: auto; /* Allow vertical scrolling for rules */
+            max-height: 400px; /* Max height for rules section */
+        }
+        #gameRulesDisplay {
+            white-space: pre-wrap; /* Preserve whitespace and line breaks */
+            font-size: 0.9em;
+            line-height: 1.5;
+            color: #666;
+        }
+
+        /* Public room list styling */
+        #public-room-list-container {
+            flex-grow: 1; /* Allows it to take up available space */
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            max-height: 600px; /* Limit height for scrollability */
+            overflow-y: auto; /* Enable scrolling */
+        }
+        #publicRoomList {
+            list-style: none;
+            padding: 0;
+        }
+        #publicRoomList li {
+            background-color: #fff;
+            margin-bottom: 8px;
+            padding: 12px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column; /* Stack details vertically */
+            gap: 5px;
+        }
+        #publicRoomList li strong {
+            font-size: 1.1em;
+            color: #333;
+        }
+        #publicRoomList li span {
+            font-size: 0.9em;
+            color: #666;
+        }
+        #publicRoomList li .room-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 5px;
+        }
+        #publicRoomList li .join-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            align-self: flex-end; /* Align button to the right */
+            margin-top: 10px;
+        }
+        #publicRoomList li .join-button:hover {
+            background-color: #0056b3;
+        }
+        #publicRoomListMessage {
+            font-style: italic;
+            color: #888;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            #main-app-container {
+                flex-direction: column; /* Stack columns vertically */
+                padding: 15px;
+            }
+            #room-system {
+                border-right: none;
+                border-bottom: 1px solid #eee; /* Add bottom border for separation */
+                padding-bottom: 20px;
+            }
+            #game-room-display {
+                min-width: unset;
+                padding-top: 20px;
+            }
+            #public-room-list-container {
+                max-height: unset; /* Remove max height on small screens */
+            }
+        }
+    </style> 
+</head> 
+<body> 
+
+    <div id="main-app-container">
+        <div id="room-system">
+            <h1>星杯傳說房間系統</h1>
+            <div class="input-group">
+                <label for="username">你的名稱:</label>
+                <input type="text" id="username" placeholder="小熊">
+            </div>
+            <div class="input-group">
+                <label for="roomName">房間名稱:</label>
+                <input type="text" id="roomName" placeholder="輸入房間名稱">
+            </div>
+            <div class="input-group">
+                <label for="roomPassword">房間密碼:</label>
+                <input type="password" id="roomPassword">
+            </div>
+            <div class="input-group">
+                <label for="customGameRules">遊戲規則說明:</label>
+                <textarea id="customGameRules" placeholder="輸入遊戲規則 (例如：禁選某些卡牌，特殊勝利條件等)"></textarea>
+            </div>
+            
+            <div class="button-group">
+                <button id="createRoomButton">開啟房間</button>
+                <button id="joinRoomButton">進入房間</button>
+            </div>
+            <p id="message"></p>
+        </div>
+
+        <div id="game-room-display">
+            <h1 id="main-right-panel-title">加入一個房間</h1>
+            
+            <!-- This will be shown when no room is active, displaying public rooms -->
+            <div id="public-room-list-container">
+                <h3>可用的房間:</h3>
+                <ul id="publicRoomList">
+                    <!-- Public rooms will be loaded here by script.js -->
+                    <li style="text-align: center; color: #888;">載入中...</li>
+                </ul>
+                <p id="publicRoomListMessage" style="text-align: center; color: #888;"></p>
+            </div>
+            
+            <!-- This content will be dynamically loaded/cleared by script.js when a room is joined -->
+            <div id="room-details-content" class="hidden">
+                <!-- Dynamic room details will go here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body> 
+</html>
