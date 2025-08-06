@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星杯傳說房間系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Socket.IO 客戶端函式庫 -->
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .main-container {
+            display: flex; /* 使用 Flexbox 實現兩欄佈局 */
+            gap: 20px; /* 欄位間距 */
+            width: 100%;
+            max-width: 1000px; /* 增加最大寬度以容納兩欄 */
+            box-sizing: border-box;
+        }
+        .column {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            padding: 30px;
+            flex: 1; /* 讓兩欄平均分配寬度 */
+            box-sizing: border-box;
+        }
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            margin-top: 8px;
+            margin-bottom: 16px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        button:hover {
+            transform: translateY(-1px);
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+        .section-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .label {
+            font-weight: 600;
+            color: #374151;
+            display: block;
+            margin-bottom: 4px;
+        }
+        /* 隱藏元素 */
+        .hidden {
+            display: none;
+        }
+
+        /* Custom Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        .modal-content h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+        .modal-content p {
+            font-size: 16px;
+            margin-bottom: 24px;
+        }
+        .modal-content input {
+            width: calc(100% - 24px); /* Adjust for padding */
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+        .modal-buttons button {
+            width: auto; /* Override full width button style */
+            padding: 8px 16px;
+            font-size: 16px;
+            box-shadow: none; /* Remove button shadow for modals */
+        }
+        .button-group {
+            display: flex;
+            gap: 10px; /* 按鈕間距 */
+        }
+        .button-group button {
+            flex: 1; /* 讓按鈕平均分配寬度 */
+        }
+        /* Styles for available rooms list */
+        #availableRooms ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #availableRooms li {
+            background-color: #f9fafb;
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        #availableRooms li h4 {
+            margin: 0;
+            font-size: 1.1em;
+            color: #333;
+        }
+        #availableRooms li p {
+            margin: 0;
+            font-size: 0.9em;
+            color: #666;
+        }
+        #availableRooms .join-room-btn {
+            background-color: #10b981; /* Green for join button */
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            transition: background-color 0.2s;
+            width: auto; /* Override global button width */
+        }
+        #availableRooms .join-room-btn:hover {
+            background-color: #059669;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- 左側欄：創建房間 -->
+        <div class="column">
+            <h1 class="section-title">星杯傳說房間系統</h1>
+
+            <div class="mb-6">
+                <label for="userNameInput" class="label">你的名稱:</label>
+                <input type="text" id="userNameInput" placeholder="小熊" value="小熊">
+            </div>
+
+            <div class="mb-4">
+                <label for="createRoomNameInput" class="label">房間名稱:</label>
+                <input type="text" id="createRoomNameInput" placeholder="輸入房間名稱">
+            </div>
+            <div class="mb-4">
+                <label for="createRoomPasswordInput" class="label">房間密碼:</label>
+                <input type="password" id="createRoomPasswordInput" placeholder="可選">
+            </div>
+            <div class="mb-6">
+                <label for="gameRulesInput" class="label">遊戲規則說明:</label>
+                <textarea id="gameRulesInput" rows="4" placeholder="輸入遊戲規則 (例如: 禁選某些卡牌, 特殊勝利條件等)"></textarea>
+            </div>
+            <div class="button-group">
+                <button id="createRoomButton" class="btn-primary">開闢房間</button>
+                <button id="joinRoomByIdButton" class="btn-secondary">進入房間</button>
+            </div>
+        </div>
+
+        <!-- 右側欄：加入房間與可用房間列表 -->
+        <div class="column">
+            <h1 class="section-title">加入一個房間</h1>
+
+            <div class="mb-4">
+                <label for="joinRoomIdInput" class="label">房間 ID:</label>
+                <input type="text" id="joinRoomIdInput" placeholder="輸入房間 ID">
+            </div>
+            <div class="mb-6">
+                <label for="joinRoomPasswordInput" class="label">房間密碼:</label>
+                <input type="password" id="joinRoomPasswordInput" placeholder="如果需要">
+            </div>
+
+            <h3 class="text-lg font-bold text-gray-800 mt-8 mb-4">可用的房間:</h3>
+            <div id="availableRooms" class="bg-gray-50 p-4 rounded-lg shadow-inner min-h-[100px] flex items-center justify-center">
+                <p class="text-gray-500">載入中...</p>
+            </div>
+        </div>
+
+        <!-- 遊戲房間介面 (初始隱藏) -->
+        <div id="gameRoom" class="hidden modal-overlay">
+            <div class="modal-content">
+                <h2 class="section-title">您在房間中</h2>
+                <p class="text-lg mb-2">房間名稱: <span id="currentRoomName" class="font-semibold"></span></p>
+                <p class="text-lg mb-4">房間 ID: <span id="currentRoomId" class="font-semibold text-sm text-gray-600"></span></p>
+                <p class="text-lg mb-4">您的名稱: <span id="currentUserName" class="font-semibold"></span></p>
+                <p class="text-lg mb-4">您的 ID: <span id="currentUserId" class="font-semibold text-sm text-gray-600"></span></p>
+
+                <h3 class="text-xl font-bold text-gray-800 mb-4 mt-8">房間內的玩家:</h3>
+                <div id="roomPlayersList" class="bg-gray-50 p-4 rounded-lg shadow-inner min-h-[80px] space-y-2">
+                    <p class="text-gray-500">載入玩家中...</p>
+                </div>
+
+                <!-- 這裡可以放置遊戲內容 -->
+                <div class="mt-8 p-4 bg-blue-50 rounded-lg text-blue-800">
+                    <p>這裡是遊戲內容區域。您可以根據遊戲邏輯在這裡添加元素。</p>
+                </div>
+
+                <button onclick="exitRoom()" class="btn-secondary mt-8">退出房間</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Alert Modal -->
+    <div id="customAlertDialog" class="hidden modal-overlay">
+        <div class="modal-content">
+            <h3 id="customAlertTitle">提示</h3>
+            <p id="customAlertMessage"></p>
+            <div class="modal-buttons">
+                <button id="customAlertOkButton" class="btn-primary">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Prompt Modal -->
+    <div id="customPromptDialog" class="hidden modal-overlay">
+        <div class="modal-content">
+            <h3 id="customPromptTitle">輸入</h3>
+            <p id="customPromptMessage"></p>
+            <input type="text" id="customPromptInput">
+            <div class="modal-buttons">
+                <button id="customPromptCancelButton" class="btn-secondary">取消</button>
+                <button id="customPromptOkButton" class="btn-primary">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入外部 JavaScript 檔案 -->
+    <script type="module" src="script.js"></script>
+</body>
+</html>
