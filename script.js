@@ -71,15 +71,19 @@ window.customPrompt = function(message, defaultValue = '', title = "輸入") {
 };
 
 // Import Firebase modules using full CDN URLs
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+// 已更新為 Firebase JS SDK 11.6.1 版本
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // !!! 重要: 使用 Canvas 環境提供的全局變數來獲取 Firebase 配置 !!!
 // 這段程式碼會嘗試解析 __firebase_config。如果 __firebase_config 未定義，它會使用一個空物件。
 const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+// 為了診斷 auth/invalid-api-key 錯誤，將 firebaseConfig 輸出到控制台
+console.log("Firebase Configuration:", firebaseConfig);
 
 // 初始化 Firebase
 const app = initializeApp(firebaseConfig);
@@ -136,7 +140,7 @@ async function setupApp() {
     const currentRoomNameDisplay = document.getElementById('currentRoomName');
     const currentRoomIdDisplay = document.getElementById('currentRoomId');
     const currentUserNameDisplay = document.getElementById('currentUserName');
-    const currentUserIdDisplay = document.getElementById('currentUserId');
+    const currentUserIdDisplay = document.getElementById('currentUserId'); // 用於顯示完整的 userId
     const roomPlayersList = document.getElementById('roomPlayersList');
     const availableRoomsDiv = document.getElementById('availableRooms');
 
