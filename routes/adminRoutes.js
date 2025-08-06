@@ -4,7 +4,19 @@
         // 引入 Room 模型 (假設 Room 模型在 models/Room.js)
         // const Room = require('../models/Room'); 
         // 或者直接在這裡定義 Room 模型，但建議分開
-        const mongoose = require('mongoose');
+        // 正確範例：從環境變數讀取
+const mongoose = require('mongoose');
+
+// 確保連線字串來自環境變數
+const mongoURI = process.env.MONGODB_URI;
+
+mongoose.connect(mongoURI, {
+  // ... 其他選項
+}).then(() => {
+  console.log('MongoDB 連線成功！');
+}).catch(err => {
+  console.error('MongoDB 連線錯誤:', err);
+});
         const roomSchema = new mongoose.Schema({
             roomName: String,
             password: String,

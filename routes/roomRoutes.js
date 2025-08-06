@@ -1,6 +1,18 @@
         const express = require('express');
         const router = express.Router();
-        const mongoose = require('mongoose');
+        // 正確範例：從環境變數讀取
+const mongoose = require('mongoose');
+
+// 確保連線字串來自環境變數
+const mongoURI = process.env.MONGODB_URI;
+
+mongoose.connect(mongoURI, {
+  // ... 其他選項
+}).then(() => {
+  console.log('MongoDB 連線成功！');
+}).catch(err => {
+  console.error('MongoDB 連線錯誤:', err);
+});
 
         // 引入 Room 模型 (假設 Room 模型在 models/Room.js)
         // const Room = require('../models/Room'); 

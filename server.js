@@ -1,6 +1,18 @@
 // 引入必要的模組
 const express = require('express');
+// 正確範例：從環境變數讀取
 const mongoose = require('mongoose');
+
+// 確保連線字串來自環境變數
+const mongoURI = process.env.MONGODB_URI;
+
+mongoose.connect(mongoURI, {
+  // ... 其他選項
+}).then(() => {
+  console.log('MongoDB 連線成功！');
+}).catch(err => {
+  console.error('MongoDB 連線錯誤:', err);
+});
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
