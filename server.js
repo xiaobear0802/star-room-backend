@@ -8,15 +8,25 @@ const path = require('path'); // 雖然不再用於靜態檔案，但其他地�
 
 const app = express();
 // Render 會通過 PORT 環境變數指定埠號
-const port = process.env.PORT || 10000; // 使用 process.env.PORT 最保險，10000 是常見的 Render 預設值
+const port = process.env.PORT || 10000; // 優先使用 Render 給的環境變數 PORT
 
 const server = http.createServer(app);
+
 const io = new Server(server, {
-    cors: {
-        origin: "*", // 允許所有來源，在生產環境中建議指定您的前端域名 (例如 'https://your-firebase-app.web.app')
-        methods: ["GET", "POST"]
-    }
+  cors: {
+    // 生產環境建議限制 origin，這裡示範允許 Firebase Hosting 網域
+    origin: process.env.NODE_ENV === 'production'
+      ? 'https://star-3a045.web.app'   // 你的前端網址，改成你實際用的
+      : '*',                           // 開發環境暫時允許所有來源
+    methods: ["GET", "POST"],
+    credentials: true                 // 若要傳 cookie 或授權標頭，啟用此選項
+  }
 });
+
+server.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
 
 const administrators = ['admin', 'manager', 'admin_name']; 
 console.log('伺服器啟動時：管理員列表為', administrators);
