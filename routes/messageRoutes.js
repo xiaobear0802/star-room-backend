@@ -1,9 +1,15 @@
-        const express = require('express');
-        const router = express.Router();
+        const express = require('express');
 
-        // 這裡可以定義訊息相關的 API 路由，例如：
-        // router.post('/send', (req, res) => { /* ... */ });
-        // router.get('/room/:roomId', (req, res) => { /* ... */ });
+        const router = express.Router();
 
-        module.exports = router;
-        
+
+
+        // 這裡可以定義訊息相關的 API 路由，例如：
+
+        // router.post('/send', (req, res) => { /* ... */ });
+
+        // router.get('/room/:roomId', (req, res) => { /* ... */ });
+
+
+
+        module.exports = router;
