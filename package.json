@@ -1,7 +1,7 @@
 {
   "name": "star-project",
   "version": "1.0.0",
-  "description": "Backend for a real-time game room application.",
+  "description": "星杯傳說房間系統後端",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
