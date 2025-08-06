@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "description": "星杯傳說房間系統後端",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+ "scripts": {
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
