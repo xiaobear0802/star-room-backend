@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>星級房間 - 聊天與遊戲</title>
+    <title>星杯傳說 - 房間系統</title>
     <!-- 引入 Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -17,50 +17,108 @@
             min-height: 100vh; /* 確保內容垂直居中 */
             margin: 0;
         }
+        /* 自定義 Tailwind 配置 */
+        @tailwind base;
+        @tailwind components;
+        @tailwind utilities;
+
+        /* 自定義樣式，用於輸入框的焦點效果 */
+        .input-focus-style:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5); /* blue-500 的半透明陰影 */
+            border-color: #3b82f6; /* blue-500 */
+        }
+        /* 滾動條樣式 */
+        .room-list-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .room-list-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .room-list-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .room-list-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-auto">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">星級房間</h1>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="flex flex-col lg:flex-row gap-6 w-full max-w-5xl mx-auto">
+        <!-- 左側卡片: 星杯傳說 房間系統 -->
+        <div class="bg-white p-6 rounded-lg shadow-xl flex-1 border border-gray-200">
+            <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">星杯傳說 房間系統</h1>
 
-        <!-- 房間加入/創建區塊 -->
-        <div class="mb-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
-            <h2 class="text-xl font-semibold text-blue-800 mb-4">加入或創建房間</h2>
             <div class="mb-4">
-                <label for="roomNameInput" class="block text-gray-700 text-sm font-bold mb-2">房間名稱:</label>
-                <input type="text" id="roomNameInput" placeholder="輸入房間名稱"
-                       class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500 transition duration-200">
+                <label for="createUsernameInput" class="block text-gray-700 text-sm font-bold mb-2">你的名稱:</label>
+                <input type="text" id="createUsernameInput" placeholder="小猴"
+                       class="input-focus-style shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight transition duration-200">
             </div>
+
             <div class="mb-4">
-                <label for="usernameInput" class="block text-gray-700 text-sm font-bold mb-2">你的名稱:</label>
-                <input type="text" id="usernameInput" placeholder="輸入你的名稱"
-                       class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500 transition duration-200">
+                <label for="createRoomNameInput" class="block text-gray-700 text-sm font-bold mb-2">房間名稱:</label>
+                <input type="text" id="createRoomNameInput" placeholder="輸入房間名稱"
+                       class="input-focus-style shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight transition duration-200">
             </div>
-            <button id="joinRoomButton"
-                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-full focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105">
-                加入/創建房間
-            </button>
+
+            <div class="mb-4">
+                <label for="createRoomPasswordInput" class="block text-gray-700 text-sm font-bold mb-2">房間密碼:</label>
+                <input type="password" id="createRoomPasswordInput" placeholder="如果需要"
+                       class="input-focus-style shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight transition duration-200">
+            </div>
+
+            <div class="mb-8 flex items-center">
+                <input type="checkbox" id="isPublicRoomCheckbox" class="form-checkbox h-5 w-5 text-blue-600 rounded-md">
+                <label for="isPublicRoomCheckbox" class="ml-2 text-gray-700 text-sm font-bold">公開房間 (不設置密碼)</label>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4">
+                <button id="createRoomButton"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex-1 focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105">
+                    開闢房間
+                </button>
+                <button id="enterRoomButton"
+                        class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg flex-1 focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105">
+                    進入房間
+                </button>
+            </div>
         </div>
 
-        <!-- 當前房間資訊區塊 -->
-        <div class="mb-8 p-6 bg-green-50 rounded-lg border border-green-200">
-            <h2 class="text-xl font-semibold text-green-800 mb-4">當前房間資訊</h2>
-            <p class="text-gray-700 mb-2">房間 ID: <span id="currentRoomId" class="font-medium text-green-700">未加入</span></p>
-            <p class="text-gray-700 mb-2">你的 ID: <span id="currentUserId" class="font-medium text-green-700">未連線</span></p>
-            <p class="text-gray-700 mb-2">你的名稱: <span id="currentUsername" class="font-medium text-green-700">未設定</span></p>
-            <button id="exitRoomButton"
-                    class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg w-full mt-4 focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105">
-                退出房間
-            </button>
-        </div>
+        <!-- 右側卡片: 加入一個房間 & 已創建房間列表 -->
+        <div class="bg-white p-6 rounded-lg shadow-xl flex-1 border border-gray-200 flex flex-col">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">加入一個房間</h2>
 
-        <!-- 玩家列表區塊 -->
-        <div class="p-6 bg-purple-50 rounded-lg border border-purple-200">
-            <h2 class="text-xl font-semibold text-purple-800 mb-4">玩家列表</h2>
-            <ul id="playerList" class="list-disc pl-5 text-gray-700">
-                <!-- 玩家會動態加載到這裡 -->
-                <li class="text-gray-500">目前沒有玩家</li>
-            </ul>
+            <div class="mb-4">
+                <label for="joinRoomIdInput" class="block text-gray-700 text-sm font-bold mb-2">房間 ID:</label>
+                <input type="text" id="joinRoomIdInput" placeholder="輸入房間 ID"
+                       class="input-focus-style shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight transition duration-200">
+            </div>
+
+            <div class="mb-8">
+                <label for="joinRoomPasswordInput" class="block text-gray-700 text-sm font-bold mb-2">房間密碼:</label>
+                <input type="password" id="joinRoomPasswordInput" placeholder="如果需要"
+                       class="input-focus-style shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight transition duration-200">
+            </div>
+
+            <!-- 已創建房間列表 -->
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center mt-auto pt-6 border-t border-gray-200">已創建房間列表</h2>
+            <div id="roomListContainer" class="flex-1 overflow-y-auto pr-2 room-list-container">
+                <!-- 房間列表將在這裡動態載入 -->
+                <p class="text-gray-500 text-center">目前沒有房間。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示訊息彈窗 (隱藏狀態) -->
+    <div id="messageModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-sm text-center">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">提示</h3>
+            <p id="modalMessage" class="text-gray-700 mb-6"></p>
+            <button id="modalConfirmButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105">
+                確定
+            </button>
         </div>
     </div>
 

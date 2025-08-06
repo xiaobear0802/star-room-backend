@@ -1,69 +1,126 @@
 // socketHandlers.js
 
-// 這個模組將處理所有 Socket.IO 事件
-let globalIo; // 用於在其他地方訪問 io 實例，如果需要從路由中發送 Socket.IO 事件
+// 用於儲存所有活躍房間的物件
+// 鍵是 roomName，值是房間的詳細資訊
+const rooms = {};
 
-// 定義 initializeSocketIO 函數
-// 注意：這裡只使用了一種方式來定義函數 (const initializeSocketIO = ...)
-// 請確保您的檔案中沒有其他重複的 'function initializeSocketIO(...)' 或 'var initializeSocketIO = ...'
-const initializeSocketIO = (ioInstance) => {
-    globalIo = ioInstance; // 保存 io 實例
+module.exports = function(io) {
+    io.on('connection', (socket) => {
+        console.log('一個用戶已連線:', socket.id);
 
-    ioInstance.on('connection', (socket) => {
-        console.log(`玩家連線：${socket.id}`);
+        // 當客戶端連線時，發送當前房間列表
+        socket.emit('updateRoomList', getPublicRoomData());
 
-        // 玩家加入房間事件
-        socket.on('joinRoom', (roomName) => {
-            socket.join(roomName);
-            console.log(`玩家 ${socket.id} 加入房間：${roomName}`);
-            // 可以廣播給房間內的所有玩家，例如更新玩家列表
-            // globalIo.to(roomName).emit('playerJoined', { playerId: socket.id, playerName: 'someName' });
+        // 處理客戶端請求房間列表的事件
+        socket.on('getRoomList', () => {
+            socket.emit('updateRoomList', getPublicRoomData());
         });
 
-        // 玩家斷線事件
+        // 處理創建房間的事件
+        socket.on('createRoom', ({ roomName, username, password, isPublic }) => {
+            if (rooms[roomName]) {
+                socket.emit('roomError', `房間 "${roomName}" 已存在。`);
+                return;
+            }
+
+            // 確保公開房間沒有密碼
+            if (isPublic && password) {
+                socket.emit('roomError', '公開房間不能設置密碼。');
+                return;
+            }
+
+            // 如果不是公開房間，但沒有提供密碼，則提示
+            if (!isPublic && !password) {
+                socket.emit('roomError', '私人房間必須設置密碼。');
+                return;
+            }
+
+            rooms[roomName] = {
+                roomName,
+                creatorId: socket.id,
+                creatorName: username, // 儲存創建者名稱
+                password: isPublic ? null : password, // 如果是公開，密碼為 null
+                isPublic: isPublic,
+                players: [{ id: socket.id, username: username }] // 將創建者加入房間
+            };
+            socket.join(roomName); // 將 socket 加入到該房間的頻道
+
+            socket.emit('roomJoined', { roomName });
+            console.log(`房間 "${roomName}" 已由 ${username} 創建。公開: ${isPublic}`);
+
+            // 廣播更新的房間列表給所有客戶端
+            io.emit('updateRoomList', getPublicRoomData());
+        });
+
+        // 處理加入房間的事件
+        socket.on('joinRoom', ({ roomName, username, password }) => {
+            const room = rooms[roomName];
+
+            if (!room) {
+                socket.emit('roomError', `房間 "${roomName}" 不存在。`);
+                return;
+            }
+
+            // 檢查是否已在房間內
+            if (room.players.some(player => player.id === socket.id)) {
+                socket.emit('roomJoined', { roomName }); // 重新確認已在房間內
+                return;
+            }
+
+            // 如果房間是私人的，檢查密碼
+            if (!room.isPublic && room.password !== password) {
+                socket.emit('roomError', '密碼錯誤。');
+                return;
+            }
+
+            room.players.push({ id: socket.id, username: username });
+            socket.join(roomName); // 將 socket 加入到該房間的頻道
+
+            socket.emit('roomJoined', { roomName });
+            console.log(`${username} 已加入房間 "${roomName}"。`);
+
+            // 廣播更新的房間列表給所有客戶端
+            io.emit('updateRoomList', getPublicRoomData());
+            // 也可以廣播給房間內的玩家，例如 'playerJoined' 事件
+            // io.to(roomName).emit('playerJoined', { username: username, id: socket.id });
+        });
+
+        // 處理用戶斷線
         socket.on('disconnect', () => {
-            console.log(`玩家斷線：${socket.id}`);
-            // TODO: 在這裡添加玩家退出房間的邏輯
-            // 這通常需要遍歷所有房間，找到該 socket.id 所在的房間並更新資料庫
-            // 然後通知相關房間的客戶端
-            // 範例 (需要根據您的 Room Schema 和實際需求調整):
-            // (async () => {
-            //     try {
-            //         // 假設您有一個 Room 模型可以訪問
-            //         // const Room = require('./models/Room'); // 如果 Room 模型在單獨的檔案中
-            //         // 或者 Room 模型已經在 server.js 中定義並導出
-            //
-            //         // 找到所有該玩家所在的房間
-            //         // const rooms = await Room.find({ 'players.id': socket.id });
-            //         // for (const room of rooms) {
-            //         //     // 從房間的玩家列表中移除斷線玩家
-            //         //     room.players = room.players.filter(player => player.id !== socket.id);
-            //         //     await room.save();
-            //         //     // 通知房間內的剩餘玩家列表已更新
-            //         //     globalIo.to(room.roomName).emit('updatePlayers', room.players);
-            //         //     // 如果房間變空，可以考慮刪除房間或標記為空閒
-            //         //     // if (room.players.length === 0) {
-            //         //     //     await Room.deleteOne({ _id: room._id });
-            //         //     //     globalIo.emit('roomUpdated'); // 通知所有客戶端房間列表已更新
-            //         //     // }
-            //         // }
-            //     } catch (error) {
-            //         console.error('Error handling disconnect:', error);
-            //     }
-            // })();
+            console.log('一個用戶已斷線:', socket.id);
+
+            // 檢查用戶是否在任何房間內
+            for (const roomName in rooms) {
+                const room = rooms[roomName];
+                const playerIndex = room.players.findIndex(player => player.id === socket.id);
+
+                if (playerIndex !== -1) {
+                    const disconnectedPlayer = room.players[playerIndex];
+                    room.players.splice(playerIndex, 1); // 從房間中移除玩家
+                    console.log(`${disconnectedPlayer.username} 已離開房間 "${roomName}"。`);
+
+                    // 如果房間沒有玩家了，則刪除房間
+                    if (room.players.length === 0) {
+                        delete rooms[roomName];
+                        console.log(`房間 "${roomName}" 已被刪除，因為沒有玩家了。`);
+                    }
+                    // 廣播更新的房間列表給所有客戶端
+                    io.emit('updateRoomList', getPublicRoomData());
+                    // 也可以廣播給房間內的玩家，例如 'playerLeft' 事件
+                    // io.to(roomName).emit('playerLeft', { username: disconnectedPlayer.username, id: disconnectedPlayer.id });
+                    break; // 每個 socket 只會屬於一個房間，找到後即可退出迴圈
+                }
+            }
         });
-
-        // 添加其他 Socket.IO 事件監聽器，例如遊戲事件
-        // socket.on('gameAction', (data) => {
-        //     console.log(`收到遊戲動作:`, data);
-        //     // 處理遊戲動作並廣播給房間內的其他玩家
-        //     globalIo.to(data.roomName).emit('gameUpdate', data);
-        // });
     });
-};
 
-// 導出 initializeSocketIO 函數，以便在 server.js 中引入和調用
-// 也導出 getIo 函數，以便在路由模組中獲取 io 實例來發送事件
-module.exports = initializeSocketIO; // 只導出 initializeSocketIO 函數
-// 如果您需要從路由中訪問 io 實例，可以這樣導出：
-// module.exports = { initializeSocketIO, getIo };
+    // 輔助函數：獲取公開的房間資訊 (不包含密碼)
+    function getPublicRoomData() {
+        return Object.values(rooms).map(room => ({
+            roomName: room.roomName,
+            creatorName: room.creatorName,
+            isPublic: room.isPublic,
+            playerCount: room.players.length // 可以顯示房間人數
+        }));
+    }
+};
