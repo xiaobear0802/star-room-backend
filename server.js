@@ -3,7 +3,7 @@
 // 引入必要的模組
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
+const { Server } = require('socket.io'); // 修正：使用解構賦值以獲得更清晰的程式碼
 const mongoose = require('mongoose');
 const cors = require('cors'); // 引入 cors 模組
 const initializeSocketIO = require('./socketHandlers'); // 引入 socketHandlers 模組
@@ -16,7 +16,7 @@ const app = express();
 // 創建 HTTP 伺服器，將 Express 應用程式傳入
 const server = http.createServer(app);
 // 初始化 Socket.IO，並將 HTTP 伺服器傳入
-const io = socketIo(server, {
+const io = new Server(server, { // 修正：使用 new Server 進行初始化
     cors: {
         origin: "*", // 允許所有來源，在生產環境中應限制為您的前端網域
         methods: ["GET", "POST"]
@@ -53,23 +53,20 @@ app.get('/', (req, res) => {
     res.send('Star Room Backend API is running!');
 });
 
+// 錯誤處理中介軟體 (可選，但推薦)
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send('Something broke!');
+});
+
 // 監聽埠口
 // Render 會在 process.env.PORT 中提供一個埠口。如果沒有，則使用 3000。
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`伺服器運行在埠口 ${PORT}`);
-    // 在伺服器啟動時記錄管理員列表 (如果 adminList 是在 server.js 中定義的)
-    // 如果 adminList 是在其他模組中定義的，您可能需要調整這裡
-    // 例如，如果 adminList 是從 models/User 中獲取的，則需要先引入 User 模型
-    // const User = require('./models/User'); // 假設您有 User 模型
-    // User.find({ role: 'admin' }).then(admins => {
-    //     console.log('伺服器啟動時：管理員列表為', admins.map(a => a.username));
-    // });
-    console.log("伺服器啟動時：管理員列表為 [ 'admin', 'xiaobear', 'babybear' ]"); // 暫時硬編碼，直到有實際的用戶管理
-});
-
-// 錯誤處理中介軟體 (可選，但推薦)
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).send('Something broke!');
+    // 修正：從環境變數中讀取管理員列表，如果不存在則使用預設值
+    const ADMIN_LIST = process.env.ADMIN_LIST
+        ? process.env.ADMIN_LIST.split(',').map(name => name.trim())
+        : ['admin', 'xiaobear', 'babybear'];
+    console.log('伺服器啟動時：管理員列表為', ADMIN_LIST);
 });
