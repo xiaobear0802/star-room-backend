@@ -1,6 +1,6 @@
+// Custom Alert Function (定義為全局，以便 index.html 中的 onclick 可以調用)
 //========================================================
 // Custom Alert and Prompt Functions
-// 這段程式碼沒有問題，我將它保留下來
 //========================================================
 window.customAlert = function(message, title = "提示") {
     return new Promise(resolve => {
@@ -8,24 +8,29 @@ window.customAlert = function(message, title = "提示") {
         const msgElement = document.getElementById('customAlertMessage');
         const titleElement = document.getElementById('customAlertTitle');
         const okButton = document.getElementById('customAlertOkButton');
+
         if (!dialog || !msgElement || !titleElement || !okButton) {
             console.error("Custom alert dialog elements not found in DOM.");
-            alert(`${title}: ${message}`);
+            alert(`${title}: ${message}`); // Fallback to native alert
             resolve();
             return;
         }
+
         titleElement.textContent = title;
         msgElement.textContent = message;
         dialog.classList.remove('hidden');
+
         const handler = () => {
             dialog.classList.add('hidden');
             okButton.removeEventListener('click', handler);
             resolve();
         };
+
         okButton.addEventListener('click', handler);
     });
 };
 
+// Custom Prompt Function (定義為全局)
 window.customPrompt = function(message, defaultValue = '', title = "輸入") {
     return new Promise(resolve => {
         const dialog = document.getElementById('customPromptDialog');
@@ -34,49 +39,48 @@ window.customPrompt = function(message, defaultValue = '', title = "輸入") {
         const inputElement = document.getElementById('customPromptInput');
         const okButton = document.getElementById('customPromptOkButton');
         const cancelButton = document.getElementById('customPromptCancelButton');
+
         if (!dialog || !msgElement || !titleElement || !inputElement || !okButton || !cancelButton) {
             console.error("Custom prompt dialog elements not found in DOM.");
-            const result = prompt(`${title}: ${message}`, defaultValue);
+            const result = prompt(`${title}: ${message}`, defaultValue); // Fallback to native prompt
             resolve(result);
             return;
         }
+
         titleElement.textContent = title;
         msgElement.textContent = message;
         inputElement.value = defaultValue;
         dialog.classList.remove('hidden');
+
         const okHandler = () => {
             dialog.classList.add('hidden');
             okButton.removeEventListener('click', okHandler);
             cancelButton.removeEventListener('click', cancelHandler);
             resolve(inputElement.value);
         };
+
         const cancelHandler = () => {
             dialog.classList.add('hidden');
             okButton.removeEventListener('click', okHandler);
             cancelButton.removeEventListener('click', cancelHandler);
             resolve(null);
         };
+
         okButton.addEventListener('click', okHandler);
         cancelButton.addEventListener('click', cancelHandler);
         inputElement.focus();
     });
 };
 
-//========================================================
-// Firebase SDKs and Configuration
-// 這裡已修正重複宣告與模組匯入問題
-//========================================================
-
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// >>> 這裡新增了你需要使用的 Firebase 服務模組 <<<
-import { getAuth, onAuthStateChanged, signInWithCustomToken, signInAnonymously } from "firebase/auth";
-import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, updateDoc } from "firebase/firestore";
+// Import Firebase modules using full CDN URLs
+// 已更新為 Firebase JS SDK 11.6.1 版本
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyA8pRY3Blep_NFyINsZHGb9eKAJX_jWcEM", // 確保這個金鑰是正確的
+    apiKey: "AIzaSyA8pRY3Blep_NFyINsZHGb9eKAJX_jWcEM",
     authDomain: "star-3a045.firebaseapp.com",
     projectId: "star-3a045",
     storageBucket: "star-3a045.firebasestorage.app",
@@ -85,30 +89,20 @@ const firebaseConfig = {
     measurementId: "G-TXL6CBL7SE"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = firebaseConfig.appId;
+const initialAuthToken = null;
 
-// >>> 這段程式碼已刪除，因為它與上面的 firebaseConfig 重複宣告 <<<
-// const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+let userId = null;
 
-const auth = getAuth(app); // 獲取 Auth 服務實例
-const db = getFirestore(app); // 獲取 Firestore 服務實例
-const appId = firebaseConfig.appId; // 從配置中獲取 appId，以防 Canvas 環境無法提供
-const initialAuthToken = null; // 你的程式碼中沒有定義，我暫時設為 null
-
-let userId = null; // 用於儲存用戶ID
-
-//========================================================
-// 應用程式主要邏輯
-// 這段程式碼已經被整合到一個 `setupApp` 函數中
-// 確保所有事件監聽器和邏輯都在 Firebase 認證完成後執行
-//========================================================
+// 監聽認證狀態變化
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         userId = user.uid;
         console.log("User signed in:", userId);
-        setupApp(); // 認證完成後設置應用程式
+        setupApp();
     } else {
         try {
             if (initialAuthToken) {
@@ -126,19 +120,18 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// ... (以下是你的 setupApp() 函數和其他邏輯，我保留原樣) ...
-
 // 確保您的其他 JavaScript 邏輯在 Firebase 初始化和認證完成後執行
 async function setupApp() {
     if (!userId) {
         console.log("Waiting for user authentication...");
         return;
     }
+
     const userNameInput = document.getElementById('userNameInput');
+    const createRoomButton = document.getElementById('createRoomButton');
     const createRoomNameInput = document.getElementById('createRoomNameInput');
     const createRoomPasswordInput = document.getElementById('createRoomPasswordInput');
-    const gameRulesInput = document.getElementById('gameRulesInput'); 
-    const createRoomButton = document.getElementById('createRoomButton');
+    const gameRulesInput = document.getElementById('gameRulesInput');
     const joinRoomByIdButton = document.getElementById('joinRoomByIdButton');
     const joinRoomIdInput = document.getElementById('joinRoomIdInput');
     const joinRoomPasswordInput = document.getElementById('joinRoomPasswordInput');
@@ -150,28 +143,31 @@ async function setupApp() {
     const currentUserIdDisplay = document.getElementById('currentUserId');
     const roomPlayersList = document.getElementById('roomPlayersList');
     const availableRoomsDiv = document.getElementById('availableRooms');
+
     const roomsCollectionRef = collection(db, `artifacts/${appId}/public/data/rooms`);
     onSnapshot(roomsCollectionRef, (snapshot) => {
         const rooms = [];
-        snapshot.forEach((doc) => {
+        snapshot.forEach(doc => {
             rooms.push({ id: doc.id, ...doc.data() });
         });
-        console.log("Available rooms:", rooms);
         displayRooms(rooms);
     }, (error) => {
         console.error("Error fetching rooms:", error);
         window.customAlert(`無法載入房間列表：${error.message}`);
     });
+
     if (createRoomButton) {
         createRoomButton.addEventListener('click', async () => {
             const roomName = createRoomNameInput.value.trim();
             const roomPassword = createRoomPasswordInput.value.trim();
             const gameRules = gameRulesInput.value.trim();
             const userName = userNameInput.value.trim();
+
             if (!roomName || !userName) {
                 await window.customAlert("房間名稱和您的名稱不能為空！");
                 return;
             }
+
             try {
                 const newRoomRef = await addDoc(roomsCollectionRef, {
                     name: roomName,
@@ -184,9 +180,11 @@ async function setupApp() {
                 });
                 console.log("Room created with ID:", newRoomRef.id);
                 await window.customAlert(`房間 "${roomName}" 創建成功！`);
+
                 createRoomNameInput.value = '';
                 createRoomPasswordInput.value = '';
                 gameRulesInput.value = '';
+                
                 enterRoom(newRoomRef.id, roomName, roomPassword, userName);
             } catch (e) {
                 console.error("Error adding document: ", e);
@@ -194,24 +192,29 @@ async function setupApp() {
             }
         });
     }
+
     if (joinRoomByIdButton) {
         joinRoomByIdButton.addEventListener('click', async () => {
             const roomId = joinRoomIdInput.value.trim();
             const joinRoomPassword = joinRoomPasswordInput.value.trim();
             const userName = userNameInput.value.trim();
+
             if (!roomId || !userName) {
                 await window.customAlert("房間 ID 和您的名稱不能為空！");
                 return;
             }
+
             try {
                 const roomDocRef = doc(db, `artifacts/${appId}/public/data/rooms`, roomId);
                 const roomDoc = await getDoc(roomDocRef);
+
                 if (roomDoc.exists()) {
                     const roomData = roomDoc.data();
                     if (roomData.password && roomData.password !== joinRoomPassword) {
                         await window.customAlert("密碼錯誤！");
                         return;
                     }
+
                     const playerExists = roomData.players.some(player => player.id === userId);
                     if (!playerExists) {
                         const updatedPlayers = [...roomData.players, { id: userId, name: userName }];
@@ -220,6 +223,7 @@ async function setupApp() {
                     } else {
                         console.log(`User ${userName} is already in room ${roomData.name}`);
                     }
+
                     await window.customAlert(`成功進入房間 "${roomData.name}"！`);
                     joinRoomIdInput.value = '';
                     joinRoomPasswordInput.value = '';
@@ -227,12 +231,13 @@ async function setupApp() {
                 } else {
                     await window.customAlert("房間不存在！");
                 }
-            } catch (error) {
-                console.error("Error joining room by ID:", error);
-                await window.customAlert("進入房間失敗，請重試！");
+            } catch (e) {
+                console.error("Error joining room:", e);
+                await window.customAlert("加入房間失敗，請重試！");
             }
         });
     }
+
     function displayRooms(rooms) {
         if (availableRoomsDiv) {
             availableRoomsDiv.innerHTML = '';
@@ -246,33 +251,45 @@ async function setupApp() {
             rooms.forEach(room => {
                 const li = document.createElement('li');
                 li.className = 'bg-gray-100 p-3 rounded-lg shadow-sm flex justify-between items-center';
-                li.innerHTML = `
+                const roomInfo = `
                     <div>
-                        <h4 class="font-semibold text-lg">${room.name}</h4>
-                        <p class="text-sm text-gray-600">玩家: ${room.players ? room.players.length : 0}</p>
-                        <p class="text-xs text-gray-500">ID: ${room.id}</p>
+                        <h3 class="font-semibold text-lg">${room.name}</h3>
+                        <p class="text-gray-600 text-sm">玩家人數: ${room.players ? room.players.length : 0}</p>
                     </div>
-                    <button class="join-room-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors duration-200" data-room-id="${room.id}" data-room-name="${room.name}" data-room-password="${room.password || ''}">加入</button>
                 `;
+                const joinButton = document.createElement('button');
+                joinButton.textContent = room.password ? '加入 (需密碼)' : '加入';
+                joinButton.className = `join-room-btn px-4 py-2 rounded-md font-medium text-white ${room.password ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-500 hover:bg-green-600'}`;
+                joinButton.dataset.roomId = room.id;
+                joinButton.dataset.roomName = room.name;
+                if (room.password) {
+                    joinButton.dataset.roomPassword = room.password;
+                }
+
+                li.innerHTML = roomInfo;
+                li.appendChild(joinButton);
                 ul.appendChild(li);
             });
             availableRoomsDiv.appendChild(ul);
             availableRoomsDiv.classList.remove('flex', 'items-center', 'justify-center');
         }
+
         availableRoomsDiv.querySelectorAll('.join-room-btn').forEach(button => {
             button.addEventListener('click', async () => {
                 const roomId = button.dataset.roomId;
                 const roomName = button.dataset.roomName;
                 const roomPassword = button.dataset.roomPassword;
                 const userName = userNameInput.value.trim();
+
                 if (!userName) {
                     await window.customAlert("請先輸入您的名稱！");
                     return;
                 }
+                
                 if (roomPassword) {
                     const enteredPassword = await window.customPrompt(`請輸入房間 "${roomName}" 的密碼：`);
                     if (enteredPassword === null || enteredPassword !== roomPassword) {
-                        await window.customAlert("密碼錯誤或取消！");
+                        await window.customAlert("密碼錯誤或取消輸入！");
                         return;
                     }
                 }
@@ -280,6 +297,7 @@ async function setupApp() {
             });
         });
     }
+
     async function enterRoom(roomId, roomName, roomPassword, userName) {
         console.log(`進入房間: ${roomName} (ID: ${roomId})，用戶: ${userName}`);
         if (mainContainer && gameRoomSection && currentRoomNameDisplay && currentRoomIdDisplay && currentUserNameDisplay && currentUserIdDisplay && roomPlayersList) {
@@ -289,6 +307,7 @@ async function setupApp() {
             currentRoomIdDisplay.textContent = roomId;
             currentUserNameDisplay.textContent = userName;
             currentUserIdDisplay.textContent = userId;
+
             const roomDocRef = doc(db, `artifacts/${appId}/public/data/rooms`, roomId);
             onSnapshot(roomDocRef, (docSnapshot) => {
                 if (docSnapshot.exists()) {
@@ -307,12 +326,10 @@ async function setupApp() {
                         exitRoom();
                     });
                 }
-            }, (error) => {
-                console.error("Error fetching room players:", error);
-                window.customAlert(`無法獲取房間玩家列表：${error.message}`);
             });
         }
     }
+
     window.exitRoom = async function() {
         if (mainContainer && gameRoomSection && currentRoomIdDisplay && userId) {
             const currentRoomId = currentRoomIdDisplay.textContent;
