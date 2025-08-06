@@ -1,4 +1,3 @@
-// Custom Alert Function (定義為全局，以便 index.html 中的 onclick 可以調用)
 //========================================================
 // Custom Alert and Prompt Functions
 //========================================================
@@ -30,7 +29,6 @@ window.customAlert = function(message, title = "提示") {
     });
 };
 
-// Custom Prompt Function (定義為全局)
 window.customPrompt = function(message, defaultValue = '', title = "輸入") {
     return new Promise(resolve => {
         const dialog = document.getElementById('customPromptDialog');
@@ -72,23 +70,28 @@ window.customPrompt = function(message, defaultValue = '', title = "輸入") {
     });
 };
 
+//========================================================
+// Firebase Initialization and App Logic
+//========================================================
+
 // Import Firebase modules using full CDN URLs
 // 已更新為 Firebase JS SDK 11.6.1 版本
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, onSnapshot, doc, getDoc, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// Your web app's Firebase configuration
+// Your web app's Firebase configuration - 已根據你提供的 Firebase 專案設定進行修正
 const firebaseConfig = {
     apiKey: "AIzaSyA8pRY3Blep_NFyINsZHGb9eKAJX_jWcEM",
     authDomain: "star-3a045.firebaseapp.com",
     projectId: "star-3a045",
     storageBucket: "star-3a045.firebasestorage.app",
     messagingSenderId: "1022086956918",
-    appId: "1:1022086956918:web:57a9fd275f43f1112bdc57",
-    measurementId: "G-TXL6CBL7SE"
+    appId: "1:1022086956918:web:51bf753442360a232bdc57",
+    measurementId: "G-DSELMS0CPG"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -120,7 +123,6 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// 確保您的其他 JavaScript 邏輯在 Firebase 初始化和認證完成後執行
 async function setupApp() {
     if (!userId) {
         console.log("Waiting for user authentication...");
