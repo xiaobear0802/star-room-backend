@@ -1,520 +1,353 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // 獲取 HTML 元素
-    const usernameInput = document.getElementById('username');
-    const roomNameInput = document.getElementById('roomName');
-    const roomPasswordInput = document.getElementById('roomPassword');
-    const customGameRulesInput = document.getElementById('customGameRules'); 
-    const createButton = document.getElementById('createRoomButton');
-    const joinButton = document.getElementById('joinRoomButton');
-    const messageParagraph = document.getElementById('message');
+// Custom Alert Function (定義為全局，以便 index.html 中的 onclick 可以調用)
+window.customAlert = function(message, title = "提示") {
+    return new Promise(resolve => {
+        const dialog = document.getElementById('customAlertDialog');
+        const msgElement = document.getElementById('customAlertMessage');
+        const titleElement = document.getElementById('customAlertTitle');
+        const okButton = document.getElementById('customAlertOkButton');
 
-    // 右側面板新結構的參考
-    const mainRightPanelTitle = document.getElementById('main-right-panel-title'); 
-    const publicRoomListContainer = document.getElementById('public-room-list-container'); 
-    const publicRoomListUl = document.getElementById('publicRoomList'); 
-    const publicRoomListMessage = document.getElementById('publicRoomListMessage'); 
-    const roomDetailsContentDiv = document.getElementById('room-details-content'); 
+        titleElement.textContent = title;
+        msgElement.textContent = message;
+        dialog.classList.remove('hidden');
 
-    // 將在 roomDetailsContentDiv 內部創建/更新的元素
-    let playerCountDisplay, maxPlayersDisplay, gameRulesDisplay, gameModeDisplay, playerListUl;
-    let startGameButton, deleteRoomButton, editMaxPlayersButton, editModeButton; 
+        const handler = () => {
+            dialog.classList.add('hidden');
+            okButton.removeEventListener('click', handler);
+            resolve();
+        };
+        okButton.addEventListener('click', handler);
+    });
+};
 
-    // 定義後端伺服器 URL
-    const backendUrl = 'https://star-room-backend.onrender.com'
-    
-    // 連接到 Socket.IO
-    const socket = io(backendUrl);
+// Custom Prompt Function (定義為全局)
+window.customPrompt = function(message, defaultValue = '', title = "輸入") {
+    return new Promise(resolve => {
+        const dialog = document.getElementById('customPromptDialog');
+        const msgElement = document.getElementById('customPromptMessage');
+        const titleElement = document.getElementById('customPromptTitle');
+        const inputElement = document.getElementById('customPromptInput');
+        const okButton = document.getElementById('customPromptOkButton');
+        const cancelButton = document.getElementById('customPromptCancelButton');
 
-    // 儲存當前房間擁有者和房間資料
-    let currentRoomOwner = null;
-    let currentRoomData = null; 
+        titleElement.textContent = title;
+        msgElement.textContent = message;
+        inputElement.value = defaultValue;
+        dialog.classList.remove('hidden');
 
-    // 輔助函數：清除右側面板並顯示公共房間列表
-    function showPublicRoomListState() {
-        mainRightPanelTitle.textContent = '加入一個房間';
-        if (publicRoomListContainer) publicRoomListContainer.classList.remove('hidden');
-        if (roomDetailsContentDiv) roomDetailsContentDiv.classList.add('hidden');
-        roomDetailsContentDiv.innerHTML = ''; 
-        
-        // 重置元素參考
-        playerCountDisplay = null;
-        maxPlayersDisplay = null;
-        gameRulesDisplay = null;
-        gameModeDisplay = null;
-        playerListUl = null;
-        startGameButton = null;
-        deleteRoomButton = null;
-        editMaxPlayersButton = null;
-        editModeButton = null;
-        currentRoomOwner = null; 
-        currentRoomData = null; 
+        const okHandler = () => {
+            dialog.classList.add('hidden');
+            okButton.removeEventListener('click', okHandler);
+            cancelButton.removeEventListener('click', cancelHandler);
+            resolve(inputElement.value);
+        };
 
-        fetchAndRenderPublicRoomList(); 
-    }
+        const cancelHandler = () => {
+            dialog.classList.add('hidden');
+            okButton.removeEventListener('click', okHandler);
+            cancelButton.removeEventListener('click', cancelHandler);
+            resolve(null);
+        };
 
-    // 輔助函數：顯示詳細房間視圖
-    function showDetailedRoomState(roomData) {
-        currentRoomData = roomData; 
-        mainRightPanelTitle.textContent = `房間名稱: ${roomData.roomName}`;
-        if (publicRoomListContainer) publicRoomListContainer.classList.add('hidden');
-        if (roomDetailsContentDiv) roomDetailsContentDiv.classList.remove('hidden');
+        okButton.addEventListener('click', okHandler);
+        cancelButton.addEventListener('click', cancelHandler);
+        inputElement.focus();
+    });
+};
 
-        roomDetailsContentDiv.innerHTML = `
-            <div id="maxPlayersDisplayArea">
-                <p>玩家人數: <span id="playerCountDisplay"></span> / <span id="maxPlayersDisplay"></span></p>
-                <button id="editMaxPlayersButton">修改上限</button>
-            </div>
-            
-            <h2>玩家清單:</h2>
-            <ul id="playerList">
-                <!-- 玩家列表將在這裡動態生成 -->
-            </ul>
+// Import Firebase modules using full CDN URLs
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
-            <div class="button-group">
-                <button id="startGameButton" class="btn-primary">開始遊戲</button>
-                <button id="deleteRoomButton" class="btn-secondary">刪除房間</button>
-            </div>
+// !!! 重要: 使用 Canvas 環境提供的全局變數來獲取 Firebase 配置 !!!
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-            <div id="gameRulesDisplayArea">
-                <p>遊戲模式: <span id="gameModeDisplay"></span></p>
-                <h3>遊戲規則:</h3>
-                <pre id="gameRulesDisplay"></pre>
-                <button id="editModeButton">修改模式</button>
-            </div>
-        `;
+// 初始化 Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app); // 獲取 Auth 服務實例
+const db = getFirestore(app); // 獲取 Firestore 服務實例
 
-        playerCountDisplay = document.getElementById('playerCountDisplay');
-        maxPlayersDisplay = document.getElementById('maxPlayersDisplay');
-        gameRulesDisplay = document.getElementById('gameRulesDisplay');
-        gameModeDisplay = document.getElementById('gameModeDisplay');
-        playerListUl = document.getElementById('playerList');
-        startGameButton = document.getElementById('startGameButton');
-        deleteRoomButton = document.getElementById('deleteRoomButton');
-        editMaxPlayersButton = document.getElementById('editMaxPlayersButton');
-        editModeButton = document.getElementById('editModeButton');
+let userId = null; // 用於儲存用戶ID
 
-        maxPlayersDisplay.textContent = roomData.maxPlayers;
-        gameModeDisplay.textContent = getModeText(roomData.gameMode); 
-        gameRulesDisplay.textContent = roomData.gameRules; 
-
-        currentRoomOwner = roomData.owner;
-        renderPlayerList(roomData.players, roomData.maxPlayers, currentRoomOwner);
-        
-        attachGameRoomButtonListeners();
-
-        socket.emit('joinRoom', roomData.roomName);
-    }
-
-    showPublicRoomListState(); // 初始化狀態
-
-    // 獲取並渲染公共房間列表
-    async function fetchAndRenderPublicRoomList() {
-        publicRoomListUl.innerHTML = '<li style="text-align: center; color: #888;">載入房間中...</li>';
-        publicRoomListMessage.textContent = '';
+// 監聽認證狀態變化
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        userId = user.uid;
+        console.log("User signed in:", userId);
+        setupApp(); // 認證完成後設置應用程式
+    } else {
+        // 如果沒有用戶登入，嘗試匿名登入
         try {
-            const response = await fetch(`${backendUrl}/api/admin/rooms`); 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const rooms = await response.json();
-
-            publicRoomListUl.innerHTML = ''; 
-            if (rooms.length === 0) {
-                publicRoomListMessage.textContent = '目前沒有可用的房間。';
+            if (initialAuthToken) {
+                await signInWithCustomToken(auth, initialAuthToken);
             } else {
-                rooms.forEach(room => {
-                    const roomLi = document.createElement('li');
-                    roomLi.innerHTML = `
-                        <strong>${room.roomName}</strong>
-                        <span>房主: ${room.owner || 'N/A'}</span>
-                        <span>玩家: ${room.players.length} / ${room.maxPlayers}</span>
-                        <span>模式: ${getModeText(room.gameMode)}</span>
-                        <button class="join-button" data-room-name="${room.roomName}">加入</button>
-                    `;
-                    publicRoomListUl.appendChild(roomLi);
-                });
-
-                document.querySelectorAll('#publicRoomList .join-button').forEach(button => {
-                    button.addEventListener('click', async (event) => {
-                        const roomName = event.target.dataset.roomName;
-                        const username = usernameInput.value.trim(); 
-
-                        if (username === '') {
-                            // 使用全局 showMessageBox 函數
-                            window.showMessageBox('錯誤', '請先輸入你的名稱！');
-                            return;
-                        }
-
-                        // 使用全局 customPrompt 函數
-                        const roomPassword = await window.customPrompt(`請輸入房間 "${roomName}" 的密碼：`);
-                        if (roomPassword === null) { 
-                            // 使用全局 showMessageBox 函數
-                            window.showMessageBox('提示', '已取消加入房間。');
-                            return;
-                        }
-
-                        await handleJoinRoom(roomName, roomPassword, username);
-                    });
-                });
+                await signInAnonymously(auth);
             }
+            userId = auth.currentUser?.uid || crypto.randomUUID(); // 如果匿名登入，生成一個隨機ID
+            console.log("Signed in anonymously or with custom token. User ID:", userId);
+            setupApp(); // 認證完成後設置應用程式
         } catch (error) {
-            publicRoomListMessage.textContent = `無法載入房間列表，請檢查伺服器。錯誤: ${error.message}`;
-            console.error('Error fetching public rooms:', error);
+            console.error("Error signing in:", error);
+            await window.customAlert("登入失敗，請檢查網路連接或稍後再試。");
         }
     }
+});
 
-    // 附加遊戲房間按鈕監聽器
-    function attachGameRoomButtonListeners() {
-        if (editMaxPlayersButton) editMaxPlayersButton.addEventListener('click', handleEditMaxPlayers);
-        if (editModeButton) editModeButton.addEventListener('click', handleEditMode);
-        if (deleteRoomButton) deleteRoomButton.addEventListener('click', handleDeleteRoom);
-        if (startGameButton) startGameButton.addEventListener('click', handleStartGame);
+// 確保您的其他 JavaScript 邏輯在 Firebase 初始化和認證完成後執行
+async function setupApp() {
+    // 確保 userId 已經被設定
+    if (!userId) {
+        console.log("Waiting for user authentication...");
+        return;
     }
 
-    // 獲取遊戲模式的文字描述
-    function getModeText(modeValue) {
-        switch(modeValue) {
-            case 'normal': return '正常遊戲模式';
-            case 'custom': return '特殊模式 (自訂義)';
-            default: return '正常遊戲模式';
-        }
-    }
+    // 獲取 HTML 元素
+    const userNameInput = document.getElementById('userNameInput');
+    const createRoomNameInput = document.getElementById('createRoomNameInput');
+    const createRoomPasswordInput = document.getElementById('createRoomPasswordInput');
+    const gameRulesInput = document.getElementById('gameRulesInput'); 
+    const createRoomButton = document.getElementById('createRoomButton');
+    const joinRoomByIdButton = document.getElementById('joinRoomByIdButton');
+    const joinRoomIdInput = document.getElementById('joinRoomIdInput');
+    const joinRoomPasswordInput = document.getElementById('joinRoomPasswordInput');
 
-    // 渲染玩家列表
-    function renderPlayerList(players, maxPlayers, owner) {
-        if (!playerListUl) return; 
+    // 遊戲房間介面元素
+    const mainContainer = document.querySelector('.main-container');
+    const gameRoomSection = document.getElementById('gameRoom');
+    const currentRoomNameDisplay = document.getElementById('currentRoomName');
+    const currentRoomIdDisplay = document.getElementById('currentRoomId');
+    const currentUserNameDisplay = document.getElementById('currentUserName');
+    const currentUserIdDisplay = document.getElementById('currentUserId');
+    const roomPlayersList = document.getElementById('roomPlayersList');
+    const availableRoomsDiv = document.getElementById('availableRooms');
 
-        playerListUl.innerHTML = '';
-        if (playerCountDisplay) {
-            playerCountDisplay.textContent = `${players.length} / ${maxPlayers}`; 
-        }
-
-        players.forEach((player) => { 
-            const playerLi = document.createElement('li');
-            playerLi.classList.add('player-item');
-            
-            const playerNameSpan = document.createElement('span');
-            playerNameSpan.textContent = player;
-
-            if (player === owner) { 
-                playerNameSpan.classList.add('player-owner-pink'); 
-                playerNameSpan.textContent = `${player} (房主)`; 
-            }
-            
-            playerLi.appendChild(playerNameSpan); 
-
-            if (usernameInput.value.trim() === owner) {
-                if (player !== owner) {
-                    const removeButton = document.createElement('button');
-                    removeButton.textContent = '刪除';
-                    removeButton.classList.add('remove-player-btn');
-                    removeButton.addEventListener('click', async () => {
-                        const roomName = currentRoomData ? currentRoomData.roomName : '';
-                        if (!roomName) {
-                            window.showMessageBox('錯誤', '無法獲取房間名稱。');
-                            return;
-                        }
-                        window.showConfirmBox(`確定要將玩家 "${player}" 從房間中移除嗎？`, async () => {
-                            try {
-                                const response = await fetch(`${backendUrl}/api/remove-player`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ roomName, username: player, ownerUsername: owner })
-                                });
-                                const data = await response.json();
-                                if (!data.success) {
-                                    window.showMessageBox('錯誤', `錯誤: ${data.message}`);
-                                }
-                            } catch (error) {
-                                console.error('Error:', error);
-                                window.showMessageBox('錯誤', '網路錯誤，無法移除玩家。');
-                            }
-                        });
-                    });
-                    playerLi.appendChild(removeButton);
-
-                    const transferOwnerButton = document.createElement('button');
-                    transferOwnerButton.textContent = '轉移房主';
-                    transferOwnerButton.classList.add('transfer-owner-btn');
-                    transferOwnerButton.addEventListener('click', async () => {
-                        const roomName = currentRoomData ? currentRoomData.roomName : '';
-                        if (!roomName) {
-                            window.showMessageBox('錯誤', '無法獲取房間名稱。');
-                            return;
-                        }
-                        if (player === usernameInput.value.trim()) {
-                            window.showMessageBox('提示', '您已經是房主，無法將房主權限轉移給自己。');
-                            return;
-                        }
-                        window.showConfirmBox(`確定要將房主權限轉移給 "${player}" 嗎？`, async () => {
-                            await handleTransferOwnership(player); 
-                        });
-                    });
-                    playerLi.appendChild(transferOwnerButton);
-                }
-            }
-            
-            playerListUl.appendChild(playerLi);
+    // 獲取房間列表
+    const roomsCollectionRef = collection(db, `artifacts/${appId}/public/data/rooms`);
+    onSnapshot(roomsCollectionRef, (snapshot) => {
+        const rooms = [];
+        snapshot.forEach((doc) => {
+            rooms.push({ id: doc.id, ...doc.data() });
         });
-    }
-    
-    // Socket.IO 事件監聽器
-    socket.on('updateRoomData', (roomData) => {
-        console.log('收到房間完整資料更新通知。', roomData);
-        if (currentRoomData && currentRoomData.roomName === roomData.roomName) {
-            showDetailedRoomState(roomData); 
-        } else {
-            fetchAndRenderPublicRoomList();
-        }
-    });
-
-    socket.on('roomUpdated', () => { 
-        console.log('收到一般房間更新通知，重新載入公共列表。');
-        fetchAndRenderPublicRoomList();
-    });
-
-    socket.on('updatePlayers', (players) => {
-        if (currentRoomData && maxPlayersDisplay && playerListUl) {
-            const maxPlayers = maxPlayersDisplay.textContent; 
-            const owner = currentRoomOwner; 
-            renderPlayerList(players, maxPlayers, owner);
-        } else if (maxPlayersDisplay && playerListUl) { // 處理在詳細房間頁面時，但 currentRoomData 可能尚未完全同步的情況
-            const maxPlayers = maxPlayersDisplay.textContent;
-            const owner = currentRoomOwner;
-            renderPlayerList(players, maxPlayers, owner); 
-        }
-    });
-
-    socket.on('updateRules', (newRules) => {
-        if (gameRulesDisplay) {
-            gameRulesDisplay.textContent = newRules;
-            window.showMessageBox('更新', '遊戲規則已更新！');
-        }
-    });
-
-    socket.on('updateMaxPlayers', (newMaxPlayers) => {
-        if (maxPlayersDisplay && playerListUl) {
-            maxPlayersDisplay.textContent = newMaxPlayers;
-            window.showMessageBox('更新', `玩家上限已更新為 ${newMaxPlayers}！`);
-            if (currentRoomData) {
-                renderPlayerList(currentRoomData.players, newMaxPlayers, currentRoomOwner);
-            }
-        }
-    });
-
-    socket.on('updateGameMode', (newMode) => {
-        if (gameModeDisplay) {
-            gameModeDisplay.textContent = getModeText(newMode);
-            window.showMessageBox('更新', `遊戲模式已更新為 ${getModeText(newMode)}！`);
-        }
-    });
-    
-    socket.on('roomDeleted', () => {
-        window.showMessageBox('通知', '房間已被刪除！你將被導回房間列表。');
-        showPublicRoomListState(); 
+        console.log("Available rooms:", rooms);
+        displayRooms(rooms);
+    }, (error) => {
+        console.error("Error fetching rooms:", error);
     });
 
     // 處理創建房間
-    async function handleCreateRoom() {
-        const username = usernameInput.value.trim();
-        const roomName = roomNameInput.value.trim();
-        const roomPassword = roomPasswordInput.value.trim();
-        const customGameRules = customGameRulesInput.value.trim(); 
+    if (createRoomButton) {
+        createRoomButton.addEventListener('click', async () => {
+            const roomName = createRoomNameInput.value;
+            const roomPassword = createRoomPasswordInput.value;
+            const gameRules = gameRulesInput.value;
+            const userName = userNameInput.value;
 
-        if (username === '' || roomName === '' || roomPassword === '') {
-            messageParagraph.textContent = '所有欄位不能為空！';
-            messageParagraph.style.color = '#e74c3c';
-            return;
-        }
-
-        try {
-            const response = await fetch(`${backendUrl}/api/create-room`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, roomName, password: roomPassword, gameRules: customGameRules }) 
-            });
-            const data = await response.json();
-            
-            if (data.success) {
-                showDetailedRoomState(data.room); 
-                messageParagraph.textContent = data.message;
-                messageParagraph.style.color = '#28a745'; 
-            } else {
-                messageParagraph.textContent = `錯誤：${data.message}`;
-                messageParagraph.style.color = '#e74c3c';
+            if (!roomName || !userName) {
+                await window.customAlert("房間名稱和您的名稱不能為空！");
+                return;
             }
-        } catch (error) {
-            messageParagraph.textContent = '網路錯誤，請檢查伺服器是否運行。';
-            messageParagraph.style.color = '#e74c3c';
-            console.error('Error:', error);
-        }
-    }
 
-    // 處理加入房間
-    async function handleJoinRoom(roomName, roomPassword, username) {
-        if (!username || username === '') {
-            window.showMessageBox('錯誤', '請先輸入你的名稱！');
-            return;
-        }
-        if (!roomName || roomPassword === undefined || roomPassword === null) { 
-            window.showMessageBox('錯誤', '房間名稱或密碼無效。');
-            return;
-        }
-
-        try {
-            const response = await fetch(`${backendUrl}/api/join-room`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, roomName, password: roomPassword })
-            });
-            const data = await response.json();
-            
-            if (data.success) {
-                showDetailedRoomState(data.room);
-                messageParagraph.textContent = data.message;
-                messageParagraph.style.color = '#28a745';
-            } else {
-                messageParagraph.textContent = `錯誤：${data.message}`;
-                messageParagraph.style.color = '#e74c3c';
-            }
-        } catch (error) {
-            messageParagraph.textContent = '網路錯誤，請檢查伺服器是否運行。';
-            messageParagraph.style.color = '#e74c3c';
-            console.error('Error:', error);
-        }
-    }
-
-    // 處理轉移房主權限
-    async function handleTransferOwnership(newOwnerUsername) {
-        if (!currentRoomData || currentRoomData.owner !== usernameInput.value.trim()) {
-            window.showMessageBox('錯誤', '只有房主才能轉移房主權限。');
-            return;
-        }
-
-        try {
-            const response = await fetch(`${backendUrl}/api/transfer-host`, { 
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    roomName: currentRoomData.roomName, 
-                    currentOwnerUsername: usernameInput.value.trim(), 
-                    newOwnerUsername: newOwnerUsername 
-                })
-            });
-            const data = await response.json();
-            if (!data.success) {
-                window.showMessageBox('錯誤', `錯誤：${data.message}`);
-            } else {
-                messageParagraph.textContent = data.message;
-                messageParagraph.style.color = '#28a745';
-            }
-        } catch (error) {
-            window.showMessageBox('錯誤', '網路錯誤，無法轉移房主。');
-            console.error('Error transferring ownership:', error);
-        }
-    }
-
-    // 處理編輯玩家上限
-    async function handleEditMaxPlayers() {
-        const roomName = currentRoomData ? currentRoomData.roomName : '';
-        if (!roomName) {
-            window.showMessageBox('錯誤', '無法獲取房間名稱。');
-            return;
-        }
-        const currentMax = parseInt(maxPlayersDisplay.textContent) || 8; 
-        const newMax = await window.customPrompt('請輸入新的玩家上限（2-8）：', currentMax.toString());
-        if (newMax !== null) {
-            const newMaxInt = parseInt(newMax);
-            if (!isNaN(newMaxInt) && newMaxInt >= 2 && newMaxInt <= 8) {
-                const username = usernameInput.value.trim(); 
-                try {
-                    const response = await fetch(`${backendUrl}/api/update-max-players`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ roomName, maxPlayers: newMaxInt, username: username })
-                    });
-                    const data = await response.json();
-                    if (!data.success) {
-                        window.showMessageBox('錯誤', `錯誤：${data.message}`);
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    window.showMessageBox('錯誤', '網路錯誤，無法更新玩家上限。');
-                }
-            } else {
-                window.showMessageBox('錯誤', '玩家上限必須是介於 2 到 8 之間的數字。');
-            }
-        }
-    }
-
-    // 處理編輯遊戲模式
-    async function handleEditMode() {
-        const roomName = currentRoomData ? currentRoomData.roomName : '';
-        if (!roomName) {
-            window.showMessageBox('錯誤', '無法獲取房間名稱。');
-            return;
-        }
-        const newMode = await window.customPrompt('請輸入新的遊戲模式 (normal 或 custom)：');
-        if (newMode !== null && (newMode === 'normal' || newMode === 'custom')) {
-            const username = usernameInput.value.trim(); 
             try {
-                const response = await fetch(`${backendUrl}/api/update-game-mode`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ roomName, gameMode: newMode, username: username })
+                const newRoomRef = await addDoc(roomsCollectionRef, {
+                    name: roomName,
+                    password: roomPassword, // 在實際應用中，密碼應該被哈希處理
+                    rules: gameRules,
+                    creatorId: userId,
+                    creatorName: userName,
+                    createdAt: new Date(),
+                    players: [{ id: userId, name: userName }] // 創建者自動加入
                 });
-                const data = await response.json();
-                if (!data.success) {
-                    window.showMessageBox('錯誤', `錯誤：${data.message}`);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                window.showMessageBox('錯誤', '網路錯誤，無法更新遊戲模式。');
-            }
-        } else if (newMode !== null) { // 只有在用戶沒有取消提示時才顯示錯誤
-            window.showMessageBox('錯誤', '無效的遊戲模式。請輸入 "normal" 或 "custom"。');
-        }
-    }
+                console.log("Room created with ID:", newRoomRef.id);
+                await window.customAlert(`房間 "${roomName}" 創建成功！`);
+                // 清空表單
+                createRoomNameInput.value = '';
+                createRoomPasswordInput.value = '';
+                gameRulesInput.value = '';
+                // 自動進入房間或導向到房間頁面
+                enterRoom(newRoomRef.id, roomName, roomPassword, userName);
 
-    // 處理刪除房間
-    async function handleDeleteRoom() {
-        const roomName = currentRoomData ? currentRoomData.roomName : '';
-        if (!roomName) {
-            window.showMessageBox('錯誤', '無法獲取房間名稱。');
-            return;
-        }
-        const username = usernameInput.value.trim(); 
-        window.showConfirmBox('確定要刪除這個房間嗎？', async () => {
-            try {
-                const response = await fetch(`${backendUrl}/api/delete-room`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ roomName: roomName, username: username })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    window.showMessageBox('成功', data.message);
-                    showPublicRoomListState(); 
-                } else {
-                    window.showMessageBox('錯誤', `錯誤：${data.message}`);
-                }
-            } catch (error) {
-                window.showMessageBox('錯誤', '網路錯誤，請檢查伺服器是否運行。');
-                console.error('Error:', error);
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                await window.customAlert("創建房間失敗，請重試！");
             }
         });
     }
-    
-    // 處理開始遊戲
-    function handleStartGame() {
-        window.showMessageBox('通知', '遊戲即將開始！');
-        // 在這裡添加實際的遊戲啟動邏輯
+
+    // 處理通過 ID 和密碼進入房間
+    if (joinRoomByIdButton) {
+        joinRoomByIdButton.addEventListener('click', async () => {
+            const roomId = joinRoomIdInput.value;
+            const joinRoomPassword = joinRoomPasswordInput.value;
+            const userName = userNameInput.value;
+
+            if (!roomId || !userName) {
+                await window.customAlert("房間 ID 和您的名稱不能為空！");
+                return;
+            }
+
+            try {
+                const roomDocRef = doc(db, `artifacts/${appId}/public/data/rooms`, roomId);
+                const roomDoc = await getDoc(roomDocRef);
+
+                if (roomDoc.exists()) {
+                    const roomData = roomDoc.data();
+                    if (roomData.password && roomData.password !== joinRoomPassword) {
+                        await window.customAlert("密碼錯誤！");
+                        return;
+                    }
+
+                    // 檢查玩家是否已在房間內
+                    const playerExists = roomData.players.some(player => player.id === userId);
+                    if (!playerExists) {
+                        // 將玩家加入房間
+                        const updatedPlayers = [...roomData.players, { id: userId, name: userName }];
+                        await updateDoc(roomDocRef, { players: updatedPlayers });
+                        console.log(`User ${userName} joined room ${roomData.name}`);
+                    } else {
+                        console.log(`User ${userName} is already in room ${roomData.name}`);
+                    }
+
+                    await window.customAlert(`成功進入房間 "${roomData.name}"！`);
+                    // 清空表單
+                    joinRoomIdInput.value = '';
+                    joinRoomPasswordInput.value = '';
+                    // 進入房間或導向到房間頁面
+                    enterRoom(roomId, roomData.name, roomData.password, userName);
+
+                } else {
+                    await window.customAlert("房間不存在！");
+                }
+            } catch (error) {
+                console.error("Error joining room by ID:", error);
+                await window.customAlert("進入房間失敗，請重試！");
+            }
+        });
     }
 
-    // 事件監聽器
-    createButton.addEventListener('click', handleCreateRoom);
-    joinButton.addEventListener('click', () => {
-        showPublicRoomListState();
-        messageParagraph.textContent = ''; 
-    });
-});
+    // 顯示可用房間的函數
+    function displayRooms(rooms) {
+        if (availableRoomsDiv) {
+            availableRoomsDiv.innerHTML = ''; // 清空現有列表
+            if (rooms.length === 0) {
+                availableRoomsDiv.innerHTML = '<p class="text-gray-500">目前沒有可用的房間。</p>';
+                availableRoomsDiv.classList.add('flex', 'items-center', 'justify-center'); // 重新添加居中
+                return;
+            }
+            const ul = document.createElement('ul');
+            ul.className = 'space-y-2 w-full'; // Add w-full to make it take full width
+            rooms.forEach(room => {
+                const li = document.createElement('li');
+                li.className = 'bg-gray-100 p-3 rounded-lg shadow-sm flex justify-between items-center';
+                li.innerHTML = `
+                    <div>
+                        <h4 class="font-semibold text-lg">${room.name}</h4>
+                        <p class="text-sm text-gray-600">玩家: ${room.players ? room.players.length : 0}</p>
+                        <p class="text-xs text-gray-500">ID: ${room.id}</p>
+                    </div>
+                    <button class="join-room-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors duration-200" data-room-id="${room.id}" data-room-name="${room.name}" data-room-password="${room.password || ''}">加入</button>
+                `;
+                ul.appendChild(li);
+            });
+            availableRoomsDiv.appendChild(ul);
+            availableRoomsDiv.classList.remove('flex', 'items-center', 'justify-center'); // 移除居中以顯示列表
+        }
+
+        // 為每個加入按鈕添加事件監聽器
+        availableRoomsDiv.querySelectorAll('.join-room-btn').forEach(button => {
+            button.addEventListener('click', async () => {
+                const roomId = button.dataset.roomId;
+                const roomName = button.dataset.roomName;
+                const roomPassword = button.dataset.roomPassword;
+                const userName = userNameInput.value;
+
+                if (!userName) {
+                    await window.customAlert("請先輸入您的名稱！");
+                    return;
+                }
+
+                // 如果房間有密碼，提示用戶輸入
+                if (roomPassword) {
+                    const enteredPassword = await window.customPrompt(`請輸入房間 "${roomName}" 的密碼：`);
+                    if (enteredPassword === null || enteredPassword !== roomPassword) {
+                        await window.customAlert("密碼錯誤或取消！");
+                        return;
+                    }
+                }
+                enterRoom(roomId, roomName, roomPassword, userName);
+            });
+        });
+    }
+
+    // 進入房間後的處理函數（您可以擴展此函數來顯示遊戲介面）
+    async function enterRoom(roomId, roomName, roomPassword, userName) {
+        console.log(`進入房間: ${roomName} (ID: ${roomId})，用戶: ${userName}`);
+        // 在這裡您可以隱藏房間列表，顯示遊戲介面
+        if (mainContainer && gameRoomSection && currentRoomNameDisplay && currentRoomIdDisplay && currentUserNameDisplay && currentUserIdDisplay && roomPlayersList) {
+            mainContainer.classList.add('hidden'); // 隱藏主容器
+            gameRoomSection.classList.remove('hidden'); // 顯示遊戲房間模態框
+            currentRoomNameDisplay.textContent = roomName;
+            currentRoomIdDisplay.textContent = roomId;
+            currentUserNameDisplay.textContent = userName;
+            currentUserIdDisplay.textContent = userId; // 顯示完整的 userId
+
+            // 監聽當前房間的玩家列表變化
+            const roomDocRef = doc(db, `artifacts/${appId}/public/data/rooms`, roomId);
+            onSnapshot(roomDocRef, (docSnapshot) => {
+                if (docSnapshot.exists()) {
+                    const roomData = docSnapshot.data();
+                    const players = roomData.players || [];
+                    roomPlayersList.innerHTML = ''; // 清空現有列表
+                    players.forEach(player => {
+                        const li = document.createElement('li');
+                        li.className = 'bg-gray-50 p-2 rounded-md shadow-sm';
+                        li.textContent = `${player.name} (ID: ${player.id})`;
+                        roomPlayersList.appendChild(li);
+                    });
+                } else {
+                    // 如果房間不存在了（例如被創建者刪除），則退出房間
+                    console.log("Room no longer exists. Exiting room.");
+                    window.customAlert("房間已被刪除！您將被導回房間列表。").then(() => {
+                        exitRoom();
+                    });
+                }
+            }, (error) => {
+                console.error("Error fetching room players:", error);
+            });
+        }
+    }
+
+    // 退出房間的函數
+    window.exitRoom = async function() {
+        if (mainContainer && gameRoomSection && currentRoomIdDisplay && userId) {
+            const currentRoomId = currentRoomIdDisplay.textContent;
+            try {
+                const roomDocRef = doc(db, `artifacts/${appId}/public/data/rooms`, currentRoomId);
+                const roomDoc = await getDoc(roomDocRef);
+
+                if (roomDoc.exists()) {
+                    const roomData = roomDoc.data();
+                    // 過濾掉當前用戶，但如果用戶是唯一一個玩家，則不從列表中移除
+                    // 這樣即使是最後一個退出的人，房間也不會自動消失
+                    // 只有創建者才能刪除房間
+                    const updatedPlayers = roomData.players.filter(player => player.id !== userId);
+                    await updateDoc(roomDocRef, { players: updatedPlayers });
+                    console.log(`User ${userId} exited room ${currentRoomId}`);
+                }
+            } catch (error) {
+                console.error("Error exiting room:", error);
+            } finally {
+                gameRoomSection.classList.add('hidden'); // 隱藏遊戲房間模態框
+                mainContainer.classList.remove('hidden'); // 顯示主容器
+                // 清空房間相關顯示
+                currentRoomNameDisplay.textContent = '';
+                currentRoomIdDisplay.textContent = '';
+                roomPlayersList.innerHTML = '';
+                // 清空加入房間的輸入框
+                joinRoomIdInput.value = '';
+                joinRoomPasswordInput.value = '';
+            }
+        }
+    };
+}
