@@ -1,0 +1,11 @@
+version: "1"
+services:
+  - type: web
+    name: star-room-backend
+    runtime: docker
+    repo: https://github.com/xiaobear0802/star-room-backend
+    plan: free
+    region: oregon
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    autoDeployTrigger: commit
