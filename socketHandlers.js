@@ -33,4 +33,16 @@
         const getIo = () => globalIo;
 
         module.exports = { initializeSocketIO, getIo };
-        
+        function initializeSocketIO(io) {
+  io.on('connection', socket => {
+    console.log('使用者已連線:', socket.id);
+
+    socket.on('disconnect', () => {
+      console.log('使用者已離線:', socket.id);
+    });
+
+    // 你可以在這裡加入更多事件處理邏輯
+  });
+}
+
+module.exports = initializeSocketIO;
