@@ -1,123 +1,69 @@
-// 引入必要的模組 
+ server.js
+
+// 引入必要的模組
 const express = require('express');
-const cors = require('cors');
-// 修正：這裡重複宣告了 app，應移除
-// const app = express();
-
-// 修正：這裡使用了 corsOptions，但後面又重新宣告了 cors。此處先註解，使用後面的全域 cors
-// 允許所有來源 (不推薦於生產環境) 
-// app.use(cors()); 
-
-// 推薦：僅允許你的前端網域 
-// const corsOptions = { 
-//  origin: 'https://你的前端網域.com', // 替換為你實際的前端網域 
-//  optionsSuccessStatus: 200 
-// }; 
-// app.use(cors(corsOptions)); 
-
-// 確保連線字串來自環境變數 
-const mongoURI = process.env.MONGODB_URI; 
-
-// 修正：mongoose 模組未引入。
+const http = require('http');
+const { Server } = require('socket.io');
 const mongoose = require('mongoose');
+const cors = require('cors');
+const initializeSocketIO = require('./socketHandlers');
 
-mongoose.connect(mongoURI, { 
-  // ... 其他選項 
-}).then(() => { 
-  console.log('MongoDB 連線成功！'); 
-}).catch(err => { 
-  console.error('MongoDB 連線錯誤:', err); 
-}); 
+// 引入路由
+const roomRoutes = require('./routes/roomRoutes');
 
-const http = require('http'); 
-const { Server } = require('socket.io'); 
-// 修正：這裡重複引入了 cors，應移除
-// const cors = require('cors'); 
-const path = require('path'); 
+// 創建 Express 應用程式實例
+const app = express();
+// 創建 HTTP 伺服器，將 Express 應用程式傳入
+const server = http.createServer(app);
+// 初始化 Socket.IO，並將 HTTP 伺服器傳入
+const io = new Server(server, {
+    cors: {
+        origin: "*", // 允許所有來源，在生產環境中應限制為您的前端網域
+        methods: ["GET", "POST"]
+    }
+});
 
-// 引入自定義的路由 
-const adminRoutes = require('./routes/adminRoutes'); 
-const roomRoutes = require('./routes/roomRoutes'); 
-const messageRoutes = require('./routes/messageRoutes'); 
-const userRoutes = require('./routes/userRoutes'); 
+// 使用 CORS 中介軟體
+app.use(cors());
 
-// 引入 Socket.IO 初始化函式 
-const initializeSocketIO = require('./socketHandlers'); 
+// 讓 Express 能夠解析 JSON 格式的請求主體
+app.use(express.json());
 
-// 創建 Express 應用程式實例 
-const app = express(); 
+// ============================================================================
+// MongoDB 連線
+// 從環境變數中獲取 MongoDB URI
+const MONGODB_URI = process.env.MONGODB_URI;
 
-// 設定伺服器監聽的端口 
-const PORT = process.env.PORT || 10000; 
+mongoose.connect(MONGODB_URI)
+    .then(() => console.log('MongoDB 連線成功！'))
+    .catch(err => console.error('MongoDB 連線錯誤:', err));
 
-// 設定 MongoDB 連接字串 
-const MONGODB_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/star-room'; 
+// ============================================================================
+// 初始化 Socket.IO 處理器
+initializeSocketIO(io);
 
-// 設定管理員列表 
-const ADMIN_LIST = process.env.ADMIN_LIST 
-  ? process.env.ADMIN_LIST.split(',').map(name => name.trim()) 
-  : ['admin', 'xiaobear', 'babybear']; 
+// ============================================================================
+// 路由設定
+// 將房間相關的路由掛載到 /api/rooms 路徑下
+app.use('/api/rooms', roomRoutes);
 
-// 將管理員列表添加到 app.locals 
-app.locals.adminList = ADMIN_LIST; 
-console.log('伺服器啟動時：管理員列表為', ADMIN_LIST); 
+// 根路由，用於測試伺服器是否正常運行
+app.get('/', (req, res) => {
+    res.send('Star Room Backend API is running!');
+});
 
-// 中間件設定 
-app.use(cors()); 
-app.use(express.json()); 
-app.use(express.static(path.join(__dirname, 'public'))); 
+// 錯誤處理中介軟體
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send('Something broke!');
+});
 
-// 路由設定 
-app.use('/api/admin', adminRoutes); 
-app.use('/api/rooms', roomRoutes); 
-app.use('/api/messages', messageRoutes); 
-app.use('/api/users', userRoutes); 
-
-// 處理前端路由（SPA） 
-app.get('*', (req, res) => { 
-  res.sendFile(path.join(__dirname, 'public', 'index.html'), err => { 
-    if (err) { 
-      res.status(500).send(err); 
-    } 
-  }); 
-}); 
-
-// 創建 HTTP 伺服器 
-const server = http.createServer(app); 
-
-// 初始化 Socket.IO 
-const io = new Server(server, { 
-  cors: { 
-    origin: "*", // 生產環境請改為你的前端網址 
-    methods: ["GET", "POST"] 
-  } 
-}); 
-
-initializeSocketIO(io); // 傳遞 io 實例給 Socket.IO 處理函式 
-
-// 連接到 MongoDB 並啟動伺服器 
-mongoose.connect(MONGODB_URI) 
-  .then(() => { 
-    console.log('Successfully connected to MongoDB.'); 
-    if (require.main === module) { 
-      server.listen(PORT, () => { 
-        console.log(`Server is running on port ${PORT}`); 
-      }); 
-    } 
-  }) 
-  .catch(err => { 
-    console.error('MongoDB connection error:', err); 
-    process.exit(1); 
-  }); 
-
-// 處理未捕獲的異常 
-process.on('unhandledRejection', reason => { 
-  console.error('未處理的拒絕:', reason); 
-}); 
-
-process.on('uncaughtException', err => { 
-  console.error('未捕獲的異常:', err); 
-}); 
-
-// 導出 app 和 server（可選） 
-module.exports = { app, server };
+// 監聽埠口
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`伺服器運行在埠口 ${PORT}`);
+    const ADMIN_LIST = process.env.ADMIN_LIST
+        ? process.env.ADMIN_LIST.split(',').map(name => name.trim())
+        : ['admin', 'xiaobear', 'babybear'];
+    console.log('伺服器啟動時：管理員列表為', ADMIN_LIST);
+});
