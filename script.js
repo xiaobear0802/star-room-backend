@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let startGameButton, deleteRoomButton, editMaxPlayersButton, editModeButton; 
 
     // Define backend server URL - 替換為您的 Render 服務 URL
-    const backendUrl = 'YOUR_RENDER_SERVICE_URL_HERE'; // <-- 將此替換為您從 Render 獲得的 URL
+    const backendUrl = 'https://star-room-backend.onrender.com'
     
     // Connect to Socket.IO - 使用新的後端 URL
     const socket = io(backendUrl);

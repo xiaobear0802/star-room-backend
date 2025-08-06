@@ -320,7 +320,9 @@
         </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="script.js"></script>
+    <!-- 關鍵修改：引入 Socket.IO 客戶端庫的 CDN 連結 -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- 關鍵修改：添加 type="module" 屬性 -->
+    <script type="module" src="script.js"></script>
 </body> 
 </html>
