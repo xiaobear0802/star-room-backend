@@ -1,0 +1,29 @@
+[33mcommit 4c5188faa8d551bdce8f03af7919fe8b71a262fc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: xiaobear0802 <babybear960802@example.com>
+Date:   Wed Aug 6 11:31:26 2025 +0800
+
+    更新了 index.html 與 script.js，分離了 JavaScript 邏輯
+
+[33mcommit f965a35f176f4ba7987a956410e90bf96aa4e31c[m
+Author: xiaobear0802 <babybear960802@example.com>
+Date:   Wed Aug 6 11:21:50 2025 +0800
+
+    您的提交訊息
+
+[33mcommit 2415d32eef629dd978d18dfaa07819250e2e5384[m
+Author: xiaobear0802 <babybear960802@example.com>
+Date:   Wed Aug 6 11:12:17 2025 +0800
+
+    更新 index.html 以修正模組導入錯誤並調整 socket.io CDN
+
+[33mcommit 7e9e0df59dc85af5a529e10a364690ffdd4db036[m
+Author: xiaobear0802 <babybear960802@example.com>
+Date:   Wed Aug 6 10:52:57 2025 +0800
+
+    首次提交
+
+[33mcommit 932d68e86bfeaa022759089ed0fad9ca3d547c61[m
+Author: xiaobear0802 <babybear960802@example.com>
+Date:   Tue Aug 5 23:59:09 2025 +0800
+
+    Initial backend files for star-room-backend

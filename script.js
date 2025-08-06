@@ -60,6 +60,7 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, getDoc, setDoc, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
 // !!! 重要: 使用 Canvas 環境提供的全局變數來獲取 Firebase 配置 !!!
+// 這段程式碼會嘗試解析 __firebase_config。如果 __firebase_config 未定義，它會使用一個空物件。
 const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -90,7 +91,7 @@ onAuthStateChanged(auth, async (user) => {
             setupApp(); // 認證完成後設置應用程式
         } catch (error) {
             console.error("Error signing in:", error);
-            await window.customAlert("登入失敗，請檢查網路連接或稍後再試。");
+            await window.customAlert(`登入失敗，請檢查網路連接或稍後再試。錯誤: ${error.message}`);
         }
     }
 });
@@ -134,15 +135,16 @@ async function setupApp() {
         displayRooms(rooms);
     }, (error) => {
         console.error("Error fetching rooms:", error);
+        window.customAlert(`無法載入房間列表：${error.message}`);
     });
 
     // 處理創建房間
     if (createRoomButton) {
         createRoomButton.addEventListener('click', async () => {
-            const roomName = createRoomNameInput.value;
-            const roomPassword = createRoomPasswordInput.value;
-            const gameRules = gameRulesInput.value;
-            const userName = userNameInput.value;
+            const roomName = createRoomNameInput.value.trim();
+            const roomPassword = createRoomPasswordInput.value.trim();
+            const gameRules = gameRulesInput.value.trim();
+            const userName = userNameInput.value.trim();
 
             if (!roomName || !userName) {
                 await window.customAlert("房間名稱和您的名稱不能為空！");
@@ -178,9 +180,9 @@ async function setupApp() {
     // 處理通過 ID 和密碼進入房間
     if (joinRoomByIdButton) {
         joinRoomByIdButton.addEventListener('click', async () => {
-            const roomId = joinRoomIdInput.value;
-            const joinRoomPassword = joinRoomPasswordInput.value;
-            const userName = userNameInput.value;
+            const roomId = joinRoomIdInput.value.trim();
+            const joinRoomPassword = joinRoomPasswordInput.value.trim();
+            const userName = userNameInput.value.trim();
 
             if (!roomId || !userName) {
                 await window.customAlert("房間 ID 和您的名稱不能為空！");
@@ -260,7 +262,7 @@ async function setupApp() {
                 const roomId = button.dataset.roomId;
                 const roomName = button.dataset.roomName;
                 const roomPassword = button.dataset.roomPassword;
-                const userName = userNameInput.value;
+                const userName = userNameInput.value.trim();
 
                 if (!userName) {
                     await window.customAlert("請先輸入您的名稱！");
@@ -314,6 +316,7 @@ async function setupApp() {
                 }
             }, (error) => {
                 console.error("Error fetching room players:", error);
+                window.customAlert(`無法獲取房間玩家列表：${error.message}`);
             });
         }
     }
@@ -337,6 +340,7 @@ async function setupApp() {
                 }
             } catch (error) {
                 console.error("Error exiting room:", error);
+                window.customAlert(`退出房間失敗：${error.message}`);
             } finally {
                 gameRoomSection.classList.add('hidden'); // 隱藏遊戲房間模態框
                 mainContainer.classList.remove('hidden'); // 顯示主容器
