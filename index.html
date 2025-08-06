@@ -1,21 +1,72 @@
-<section id="gameRoom" class="hidden container mx-auto p-4 mt-8">
-    <div class="bg-white p-6 rounded-lg shadow-md">
-        <h2 class="text-2xl font-bold mb-4">
-            房間：<span id="currentRoomName"></span>
-        </h2>
-        <div class="text-sm text-gray-500 mb-4">
-            房間 ID: <span id="currentRoomId"></span>
-        </div>
-        <div class="text-sm text-gray-500 mb-4">
-            您的名稱: <span id="currentUserName"></span> (ID: <span id="currentUserId"></span>)
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星級房間 - 聊天與遊戲</title>
+    <!-- 引入 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 設定 Inter 字體和基本背景 */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* 淺灰色背景 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* 確保內容垂直居中 */
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-auto">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">星級房間</h1>
+
+        <!-- 房間加入/創建區塊 -->
+        <div class="mb-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
+            <h2 class="text-xl font-semibold text-blue-800 mb-4">加入或創建房間</h2>
+            <div class="mb-4">
+                <label for="roomNameInput" class="block text-gray-700 text-sm font-bold mb-2">房間名稱:</label>
+                <input type="text" id="roomNameInput" placeholder="輸入房間名稱"
+                       class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500 transition duration-200">
+            </div>
+            <div class="mb-4">
+                <label for="usernameInput" class="block text-gray-700 text-sm font-bold mb-2">你的名稱:</label>
+                <input type="text" id="usernameInput" placeholder="輸入你的名稱"
+                       class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500 transition duration-200">
+            </div>
+            <button id="joinRoomButton"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-full focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105">
+                加入/創建房間
+            </button>
         </div>
 
-        <h3 class="text-xl font-semibold mt-6 mb-2">玩家列表</h3>
-        <ul id="roomPlayersList" class="space-y-2">
-            </ul>
-        
+        <!-- 當前房間資訊區塊 -->
+        <div class="mb-8 p-6 bg-green-50 rounded-lg border border-green-200">
+            <h2 class="text-xl font-semibold text-green-800 mb-4">當前房間資訊</h2>
+            <p class="text-gray-700 mb-2">房間 ID: <span id="currentRoomId" class="font-medium text-green-700">未加入</span></p>
+            <p class="text-gray-700 mb-2">你的 ID: <span id="currentUserId" class="font-medium text-green-700">未連線</span></p>
+            <p class="text-gray-700 mb-2">你的名稱: <span id="currentUsername" class="font-medium text-green-700">未設定</span></p>
+            <button id="exitRoomButton"
+                    class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg w-full mt-4 focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105">
+                退出房間
+            </button>
         </div>
-    <div class="mt-4">
-        <button onclick="window.exitRoom()" class="px-4 py-2 bg-red-500 text-white rounded-md font-medium hover:bg-red-600">退出房間</button>
+
+        <!-- 玩家列表區塊 -->
+        <div class="p-6 bg-purple-50 rounded-lg border border-purple-200">
+            <h2 class="text-xl font-semibold text-purple-800 mb-4">玩家列表</h2>
+            <ul id="playerList" class="list-disc pl-5 text-gray-700">
+                <!-- 玩家會動態加載到這裡 -->
+                <li class="text-gray-500">目前沒有玩家</li>
+            </ul>
+        </div>
     </div>
-</section>
+
+    <!-- 引入 Socket.IO 客戶端庫 -->
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <!-- 引入您的客戶端腳本 -->
+    <script src="script.js"></script>
+</body>
+</html>
