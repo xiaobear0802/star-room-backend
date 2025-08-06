@@ -6,6 +6,14 @@ window.customAlert = function(message, title = "提示") {
         const titleElement = document.getElementById('customAlertTitle');
         const okButton = document.getElementById('customAlertOkButton');
 
+        // 確保元素存在，避免在 DOM 未完全載入時報錯
+        if (!dialog || !msgElement || !titleElement || !okButton) {
+            console.error("Custom alert dialog elements not found in DOM.");
+            alert(`${title}: ${message}`); // Fallback to native alert
+            resolve();
+            return;
+        }
+
         titleElement.textContent = title;
         msgElement.textContent = message;
         dialog.classList.remove('hidden');
@@ -28,6 +36,14 @@ window.customPrompt = function(message, defaultValue = '', title = "輸入") {
         const inputElement = document.getElementById('customPromptInput');
         const okButton = document.getElementById('customPromptOkButton');
         const cancelButton = document.getElementById('customPromptCancelButton');
+
+        // 確保元素存在
+        if (!dialog || !msgElement || !titleElement || !inputElement || !okButton || !cancelButton) {
+            console.error("Custom prompt dialog elements not found in DOM.");
+            const result = prompt(`${title}: ${message}`, defaultValue); // Fallback to native prompt
+            resolve(result);
+            return;
+        }
 
         titleElement.textContent = title;
         msgElement.textContent = message;
