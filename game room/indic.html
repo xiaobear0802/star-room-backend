@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>可拖曳的指示物</title>
+  <!-- 載入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 遊戲介面背景樣式 */
+    body {
+      background-color: #f3f4f6; /* bg-gray-100 */
+      font-family: 'Inter', sans-serif;
+      overflow: hidden; /* 防止拖曳時出現滾動條 */
+      touch-action: none; /* 防止觸控事件的預設行為，例如滾動 */
+    }
+
+    /* 確保拖曳區域顯示在最上層 */
+    .draggable-container.is-dragging {
+      z-index: 50; /* Tailwind z-50 */
+    }
+  </style>
+</head>
+<body class="relative w-full h-screen flex items-center justify-center">
+
+  <!-- 可拖曳的指示物區域容器 -->
+  <div
+    id="token-area"
+    class="draggable-container absolute p-6 bg-gray-900 rounded-xl shadow-lg cursor-grab z-10 text-white"
+  >
+    <h2 class="text-2xl font-bold mb-4 text-center">指示物管理</h2>
+
+    <!-- 指示物顯示區塊 (更新後) -->
+    <div class="w-full text-center mb-4 flex flex-col items-center">
+      <h3 class="text-xs font-bold text-gray-300 mb-1">指示物數量</h3>
+      <div class="flex flex-col gap-1 text-sm font-bold">
+        <div class="flex items-center gap-2">
+          <span class="text-yellow-400">黃:</span>
+          <span id="yellow-face-up-count" class="bg-gray-700 px-2 py-1 rounded">正面(0)</span>
+          <span id="yellow-face-down-count" class="bg-gray-700 px-2 py-1 rounded">反面(8)</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-blue-400">藍:</span>
+          <span id="blue-face-up-count" class="bg-gray-700 px-2 py-1 rounded">正面(0)</span>
+          <span id="blue-face-down-count" class="bg-gray-700 px-2 py-1 rounded">反面(8)</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 按鈕區塊 -->
+    <div class="flex justify-center gap-4">
+      <div class="flex flex-col items-center">
+        <h4 class="font-bold text-yellow-400 mb-2">黃色指示物</h4>
+        <div class="flex gap-2">
+          <button id="gain-yellow-btn" data-color="yellow" data-type="gain"
+            class="bg-yellow-500 text-gray-900 px-4 py-2 rounded-xl shadow-lg transition-all transform hover:scale-105 active:bg-yellow-600 disabled:opacity-50 text-sm font-bold">
+            獲得
+          </button>
+          <button id="consume-yellow-btn" data-color="yellow" data-type="consume"
+            class="bg-red-500 text-white px-4 py-2 rounded-xl shadow-lg transition-all transform hover:scale-105 active:bg-red-600 disabled:opacity-50 text-sm font-bold">
+            消耗
+          </button>
+        </div>
+      </div>
+      <div class="flex flex-col items-center">
+        <h4 class="font-bold text-blue-400 mb-2">藍色指示物</h4>
+        <div class="flex gap-2">
+          <button id="gain-blue-btn" data-color="blue" data-type="gain"
+            class="bg-blue-500 text-white px-4 py-2 rounded-xl shadow-lg transition-all transform hover:scale-105 active:bg-blue-600 disabled:opacity-50 text-sm font-bold">
+            獲得
+          </button>
+          <button id="consume-blue-btn" data-color="blue" data-type="consume"
+            class="bg-red-500 text-white px-4 py-2 rounded-xl shadow-lg transition-all transform hover:scale-105 active:bg-red-600 disabled:opacity-50 text-sm font-bold">
+            消耗
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 指示物模態視窗 (新增) -->
+  <div id="marker-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
+      <div class="bg-gray-800 p-6 rounded-xl shadow-lg border-2 border-yellow-500 w-full max-w-sm">
+          <h3 id="marker-modal-title" class="text-xl font-bold text-yellow-400 mb-4">獲得指示物</h3>
+          <div class="mb-4">
+              <label class="block text-gray-300 mb-2">數量:</label>
+              <input type="number" min="0" value="0" id="marker-input" class="w-full p-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+          </div>
+          <div id="marker-modal-message" class="text-red-400 text-sm mb-4"></div>
+          <div class="flex justify-end gap-2">
+              <button id="cancel-marker-btn" class="py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition duration-300">取消</button>
+              <button id="confirm-marker-btn" class="py-2 px-4 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition duration-300">確認</button>
+          </div>
+      </div>
+  </div>
+
+  <script>
+    // 遊戲狀態變數，使用您提供的命名方式
+    const gameState = {
+      yellowMarkersFaceUp: 0,
+      yellowMarkersFaceDown: 8,
+      blueMarkersFaceUp: 0,
+      blueMarkersFaceDown: 8,
+    };
+
+    // 模態視窗狀態變數
+    let markerModalType = 'gain';
+    let currentMarkerColor = 'yellow';
+
+    // 取得 HTML 元素
+    const tokenArea = document.getElementById('token-area');
+    const yellowFaceUpCountSpan = document.getElementById('yellow-face-up-count');
+    const yellowFaceDownCountSpan = document.getElementById('yellow-face-down-count');
+    const blueFaceUpCountSpan = document.getElementById('blue-face-up-count');
+    const blueFaceDownCountSpan = document.getElementById('blue-face-down-count');
+
+    // 模態視窗元素
+    const markerModal = document.getElementById('marker-modal');
+    const markerModalTitle = document.getElementById('marker-modal-title');
+    const markerInput = document.getElementById('marker-input');
+    const markerModalMessage = document.getElementById('marker-modal-message');
+    const confirmMarkerBtn = document.getElementById('confirm-marker-btn');
+    const cancelMarkerBtn = document.getElementById('cancel-marker-btn');
+
+    // 取得所有「獲得」與「消耗」按鈕
+    const allControlBtns = document.querySelectorAll('[data-color][data-type]');
+
+    // 拖曳功能相關變數
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    /**
+     * 更新 UI 顯示。
+     */
+    function updateUI() {
+      yellowFaceUpCountSpan.textContent = `正面(${gameState.yellowMarkersFaceUp})`;
+      yellowFaceDownCountSpan.textContent = `反面(${gameState.yellowMarkersFaceDown})`;
+      blueFaceUpCountSpan.textContent = `正面(${gameState.blueMarkersFaceUp})`;
+      blueFaceDownCountSpan.textContent = `反面(${gameState.blueMarkersFaceDown})`;
+    }
+
+    /**
+     * 顯示模態視窗，並根據點擊的按鈕設定標題和顏色。
+     * @param {string} color - 'yellow' 或 'blue'
+     * @param {string} type - 'gain' 或 'consume'
+     */
+    function showMarkerModal(color, type) {
+      markerModalType = type;
+      currentMarkerColor = color;
+      
+      markerModalTitle.textContent = type === 'gain' ? '獲得指示物' : '消耗指示物';
+      markerInput.value = 0; // 重置輸入
+      markerModalMessage.textContent = ''; // 清空錯誤訊息
+
+      // 根據顏色設定模態視窗的樣式
+      if (color === 'yellow') {
+        markerModal.querySelector('.border-yellow-500').classList.remove('border-blue-500');
+        markerModal.querySelector('.border-yellow-500').classList.add('border-yellow-500');
+        markerModalTitle.classList.remove('text-blue-400');
+        markerModalTitle.classList.add('text-yellow-400');
+        confirmMarkerBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+        confirmMarkerBtn.classList.add('bg-yellow-600', 'hover:bg-yellow-700');
+        markerInput.classList.remove('focus:ring-blue-500');
+        markerInput.classList.add('focus:ring-yellow-500');
+      } else { // blue
+        markerModal.querySelector('.border-yellow-500').classList.remove('border-yellow-500');
+        markerModal.querySelector('.border-blue-500').classList.add('border-blue-500');
+        markerModalTitle.classList.remove('text-yellow-400');
+        markerModalTitle.classList.add('text-blue-400');
+        confirmMarkerBtn.classList.remove('bg-yellow-600', 'hover:bg-yellow-700');
+        confirmMarkerBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+        markerInput.classList.remove('focus:ring-yellow-500');
+        markerInput.classList.add('focus:ring-blue-500');
+      }
+
+      markerModal.classList.remove('hidden');
+    }
+
+    /**
+     * 隱藏模態視窗。
+     */
+    function hideMarkerModal() {
+      markerModal.classList.add('hidden');
+    }
+
+    /**
+     * 確認模態視窗的操作。
+     */
+    function confirmMarkerAction() {
+      let count = parseInt(markerInput.value, 10);
+
+      if (isNaN(count) || count < 0) {
+        markerModalMessage.textContent = '請輸入有效的非負數。';
+        return;
+      }
+      
+      let faceUpKey = `${currentMarkerColor}MarkersFaceUp`;
+      let faceDownKey = `${currentMarkerColor}MarkersFaceDown`;
+
+      if (markerModalType === 'gain') {
+        if (gameState[faceDownKey] < count) {
+          markerModalMessage.textContent = `反面指示物不足，最多只能獲得 ${gameState[faceDownKey]} 個。`;
+          return;
+        }
+        gameState[faceUpKey] += count;
+        gameState[faceDownKey] -= count;
+      } else { // consume
+        if (gameState[faceUpKey] < count) {
+          markerModalMessage.textContent = `正面指示物不足，最多只能消耗 ${gameState[faceUpKey]} 個。`;
+          return;
+        }
+        gameState[faceUpKey] -= count;
+        gameState[faceDownKey] += count;
+      }
+
+      updateUI();
+      hideMarkerModal();
+    }
+
+    // ------------------
+    // 事件處理器
+    // ------------------
+
+    // 拖曳功能
+    function startDrag(e) {
+      isDragging = true;
+      tokenArea.classList.add('is-dragging');
+      tokenArea.style.cursor = 'grabbing';
+      
+      let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+      let clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+      const rect = tokenArea.getBoundingClientRect();
+      offsetX = clientX - rect.left;
+      offsetY = clientY - rect.top;
+
+      e.stopPropagation(); // 阻止事件冒泡
+    }
+
+    function doDrag(e) {
+      if (!isDragging) return;
+      e.preventDefault(); // 阻止預設行為，例如文字選取
+      
+      let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+      let clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+      if (clientX === undefined || clientY === undefined) return;
+
+      const newX = clientX - offsetX;
+      const newY = clientY - offsetY;
+
+      // 更新元素的 transform 屬性來移動它
+      tokenArea.style.transform = `translate(${newX}px, ${newY}px)`;
+    }
+
+    function endDrag() {
+      isDragging = false;
+      tokenArea.classList.remove('is-dragging');
+      tokenArea.style.cursor = 'grab';
+    }
+
+    // 拖曳事件監聽
+    tokenArea.addEventListener('mousedown', startDrag);
+    tokenArea.addEventListener('touchstart', startDrag);
+    window.addEventListener('mousemove', doDrag);
+    window.addEventListener('touchmove', doDrag);
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchend', endDrag);
+
+    // 模態視窗按鈕事件監聽
+    allControlBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const color = btn.dataset.color;
+        const type = btn.dataset.type;
+        showMarkerModal(color, type);
+      });
+    });
+
+    confirmMarkerBtn.addEventListener('click', confirmMarkerAction);
+    cancelMarkerBtn.addEventListener('click', hideMarkerModal);
+
+    // 初始渲染
+    window.onload = () => {
+      updateUI();
+      // 將區域置中
+      tokenArea.style.left = '50%';
+      tokenArea.style.top = '50%';
+      tokenArea.style.transform = 'translate(-50%, -50%)';
+    };
+  </script>
+
+</body>
+</html>

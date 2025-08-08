@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星杯傳說</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 新增自定義樣式以確保聊天視窗的層級在模態視窗之下 */
+        .chat-message-user {
+            background-color: #6d28d9; /* 紫色 */
+            color: #fff;
+        }
+        .chat-message-other {
+            background-color: #3b82f6; /* 藍色 */
+            color: #fff;
+        }
+        .dragging {
+            opacity: 0.5;
+            border: 2px dashed #fff;
+        }
+        /* 治療卡牌背樣式 */
+        .healing-card-back {
+            background-image: linear-gradient(135deg, #4b5563, #374151);
+            border: 1px solid #6b7280;
+        }
+        /* 治療卡牌面樣式 */
+        .healing-card-front {
+            background-image: linear-gradient(135deg, #d97706, #fbbf24);
+            border: 1px solid #f59e0b;
+        }
+    </style>
+    <!-- Firebase 模組載入 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // 遊戲卡牌資料庫
+            const cardData = {
+                attackCards: [
+                    '風神斬', '水漣斬', '火焰斬', '地裂斬', '雷光斬', '暗滅'
+                ],
+                magicCards: [
+                    '聖光', '中毒', '虛弱', '聖盾', '魔彈'
+                ],
+                specialCards: [
+                    '角色專屬卡'
+                ],
+                characterCards: [
+                    '仲裁者', '守護者', '賢者'
+                ],
+                skillCards: [
+                    '審判', '守護', '治療', '祝福'
+                ],
+                markerCards: {
+                    yellow: '黃色指示物',
+                    blue: '藍色指示物'
+                },
+                healingCards: '治療卡'
+            };
+
+            // Firebase 相關變數
+            let db = null;
+            let auth = null;
+            let userId = null;
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+            // 遊戲狀態
+            let players = [];
+            let gameStatus = {
+                gamePhase: '設置中',
+                turnPlayerId: '-',
+                redMorale: 15,
+                blueMorale: 15,
+                redTeam: {
+                    redGems: 0,
+                    blueGems: 0,
+                    chalice: 0,
+                    resourceTotalLimit: 5, // 戰績區的寶石/水晶總上限
+                },
+                blueTeam: {
+                    redGems: 0,
+                    blueGems: 0,
+                    chalice: 0,
+                    resourceTotalLimit: 5, // 戰績區的寶石/水晶總上限
+                },
+                publicDeckCount: 150,
+                discardPileCount: 0,
+                healingDeckCount: 27,
+                totalYellowMarkers: 38,
+                totalBlueMarkers: 16,
+            };
+            let tempPlayerNames = ['玩家1', '玩家2', '玩家3', '玩家4'];
+
+            const appRoot = document.getElementById('app-root');
+            const chatToggleBtn = document.getElementById('chat-toggle');
+            const chatWindow = document.getElementById('chat-window');
+            const chatCloseBtn = document.getElementById('chat-close');
+            const chatInput = document.getElementById('chat-input');
+            const chatSendBtn = document.getElementById('chat-send');
+            const chatHistoryDiv = document.getElementById('chat-history');
+            let currentUser = null; // 當前使用者物件，用於聊天室中顯示名稱
+            
+            // 玩家個人資源總上限
+            const PLAYER_RESOURCE_TOTAL_LIMIT = 3;
+            // 每次提煉上限 (紅寶石+藍寶石總數)
+            const REFINEMENT_LIMIT = 2;
+            // 玩家治療卡總上限
+            const HEALING_CARD_TOTAL_LIMIT = 4;
+            // 獲得/消耗指示物模態視窗的類型
+            let markerModalType = 'gain';
+
+
+            // 初始化 Firebase
+            const initFirebase = async () => {
+                try {
+                    const firebaseConfig = JSON.parse(__firebase_config);
+                    
+                    const firebaseApp = initializeApp(firebaseConfig);
+                    auth = getAuth(firebaseApp);
+                    db = getFirestore(firebaseApp);
+
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            userId = user.uid;
+                            console.log("Firebase authenticated. User ID:", userId);
+                            setupChatListener();
+                        } else {
+                            console.log("Firebase authentication failed or user signed out.");
+                        }
+                    });
+                } catch (error) {
+                    console.error("Firebase 初始化或登入失敗:", error);
+                }
+            };
+
+            // 渲染函數
+            const render = () => {
+                appRoot.innerHTML = '';
+                const mainContainer = document.createElement('div');
+                mainContainer.className = 'flex flex-col items-center min-h-screen p-4 relative';
+
+                let contentHtml = `
+                    <h1 class="text-4xl font-bold text-center text-yellow-400 mb-2">星杯傳說</h1>
+                    <p id="current-user-id" class="text-xs font-mono text-center text-gray-400 mb-4">你的使用者ID: ${userId || '登入中...'}</p>
+                    <p id="current-game-id" class="text-lg font-mono text-center text-gray-400">遊戲ID: (請先創建或加入遊戲)</p>
+                `;
+
+                if (gameStatus.gamePhase === '設置中') {
+                    contentHtml += `
+                        <div class="bg-gray-700 p-6 rounded-xl shadow-lg border-l-4 border-yellow-400 flex flex-col gap-4 max-w-lg mx-auto mt-10">
+                            <h2 class="text-2xl font-semibold text-yellow-400">遊戲設定</h2>
+                            <div>
+                                <label class="block text-gray-300 mb-2">玩家人數:</label>
+                                <input type="number" min="1" value="${tempPlayerNames.length}" id="player-count-input" class="w-full p-2 rounded-lg bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                            </div>
+                            ${tempPlayerNames.map((name, index) => `
+                                <div>
+                                    <label class="block text-gray-300 mb-2">玩家${index + 1} 名稱:</label>
+                                    <input type="text" value="${name}" id="player-name-input-${index}" class="w-full p-2 rounded-lg bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                                </div>
+                            `).join('')}
+                            <button id="apply-settings-btn" class="mt-4 w-full py-3 px-4 bg-yellow-600 text-white rounded-lg font-semibold hover:bg-yellow-700 transition duration-300">
+                                開始遊戲
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    // 環繞式遊戲畫面
+                    const playerCardHtml = (player) => {
+                        const isCurrentPlayer = currentUser && player.id === currentUser.id;
+                        const cardHandHtml = isCurrentPlayer
+                            ? player.hand.map(name => Card(name)).join('')
+                            : player.hand.map(_ => Card(null, true)).join('');
+
+                        // 判斷是否顯示寶石轉換按鈕
+                        const gemConvertButton = (player.gems > 0) ? `
+                            <button class="w-full mt-2 py-1 px-2 bg-purple-600 text-white rounded-lg text-xs font-semibold hover:bg-purple-700 transition duration-300 convert-gem-btn" data-player-id="${player.id}">
+                                轉換寶石為水晶
+                            </button>
+                        ` : '';
+
+                        // 渲染治療卡
+                        const healingCardHtml = () => {
+                            let cards = [];
+                            for (let i = 0; i < HEALING_CARD_TOTAL_LIMIT; i++) {
+                                const isFaceUp = i < player.healingCardsFaceUp;
+                                cards.push(`
+                                    <div class="w-12 h-16 rounded-md shadow-sm flex items-center justify-center text-center text-xs font-semibold text-white p-1
+                                        ${isFaceUp ? 'healing-card-front' : 'healing-card-back'}">
+                                        ${isFaceUp ? '治療卡' : '卡背'}
+                                    </div>
+                                `);
+                            }
+                            return cards.join('');
+                        };
+
+                        return `
+                            <div class="player-card p-4 rounded-xl shadow-lg flex flex-col items-center ${player.team === '紅' ? 'bg-red-900 border-red-500' : 'bg-blue-900 border-blue-500'} border-b-2 max-w-[200px] w-full cursor-move" draggable="true" data-player-id="${player.id}">
+                                <h2 class="text-xl font-semibold mb-1 ${player.team === '紅' ? 'text-red-400' : 'text-blue-400'}">
+                                    ${player.name}
+                                    ${player.id === gameStatus.turnPlayerId ? '<span class="text-yellow-400 text-sm ml-2">(你的回合)</span>' : ''}
+                                </h2>
+                                <span class="text-sm mb-2 ${player.team === '紅' ? 'text-red-300' : 'text-blue-300'}">(陣營 ${player.team})</span>
+                                
+                                <div class="flex justify-center gap-2 mb-2">
+                                    <div class="w-16 h-24 bg-gray-700 rounded-md shadow-sm flex flex-col items-center justify-center text-center text-xs font-semibold text-white p-1">
+                                        <span class="text-[10px] text-gray-300 mb-0.5">角色卡</span>
+                                        <span class="text-sm">${player.character}</span>
+                                    </div>
+                                    ${player.specialCard ? `
+                                    <div class="w-16 h-24 bg-yellow-700 rounded-md shadow-sm flex flex-col items-center justify-center text-center text-xs font-semibold text-white p-1">
+                                        <span class="text-[10px] text-gray-300 mb-0.5">技能卡</span>
+                                        <span class="text-sm">${player.specialCard}</span>
+                                    </div>
+                                    ` : ''}
+                                </div>
+                                
+                                <!-- 玩家個人寶石與水晶計數器 (顯示總上限) -->
+                                <div class="w-full text-center mb-2 flex flex-col items-center">
+                                    <h3 class="text-xs font-bold text-gray-300 mb-1">資源 (總上限: ${PLAYER_RESOURCE_TOTAL_LIMIT})</h3>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-red-400 text-sm font-bold">寶石:</span>
+                                        <div class="flex items-center gap-1">
+                                            ${[...Array(player.gems)].map((_, i) => `<span key="player-${player.id}-gem-${i}" class="inline-block w-3 h-3 bg-red-600 rounded-full"></span>`).join('')}
+                                            ${[...Array(PLAYER_RESOURCE_TOTAL_LIMIT - player.gems)].map((_, i) => `<span key="player-${player.id}-gem-empty-${i}" class="inline-block w-3 h-3 bg-gray-600 rounded-full"></span>`).join('')}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-blue-400 text-sm font-bold">水晶:</span>
+                                        <div class="flex items-center gap-1">
+                                            ${[...Array(player.crystals)].map((_, i) => `<span key="player-${player.id}-crystal-${i}" class="inline-block w-3 h-3 bg-blue-600 rounded-full"></span>`).join('')}
+                                            ${[...Array(PLAYER_RESOURCE_TOTAL_LIMIT - player.crystals)].map((_, i) => `<span key="player-${player.id}-crystal-empty-${i}" class="inline-block w-3 h-3 bg-gray-600 rounded-full"></span>`).join('')}
+                                        </div>
+                                    </div>
+                                    ${gemConvertButton}
+                                </div>
+                                
+                                <!-- 玩家個人治療卡 -->
+                                <div class="w-full text-center mb-2 flex flex-col items-center">
+                                    <h3 class="text-xs font-bold text-gray-300 mb-1">治療卡 (總上限: ${HEALING_CARD_TOTAL_LIMIT})</h3>
+                                    <div class="flex flex-wrap justify-center gap-1">
+                                        ${healingCardHtml()}
+                                    </div>
+                                </div>
+
+                                <!-- 指示物顯示區塊 -->
+                                <div class="w-full text-center mb-2 flex flex-col items-center">
+                                    <h3 class="text-xs font-bold text-gray-300 mb-1">指示物</h3>
+                                    <div class="flex flex-col gap-1 text-sm font-bold">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-yellow-400">黃:</span>
+                                            <span class="bg-gray-600 px-2 py-1 rounded">正面(${player.yellowMarkersFaceUp})</span>
+                                            <span class="bg-gray-600 px-2 py-1 rounded">反面(${player.yellowMarkersFaceDown})</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-blue-400">藍:</span>
+                                            <span class="bg-gray-600 px-2 py-1 rounded">正面(${player.blueMarkersFaceUp})</span>
+                                            <span class="bg-gray-600 px-2 py-1 rounded">反面(${player.blueMarkersFaceDown})</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 手牌顯示區塊 -->
+                                <div class="w-full mt-2 p-2 bg-gray-600 rounded-lg shadow-inner flex flex-col items-center">
+                                    <h3 class="text-sm font-bold text-gray-200 mb-1">手牌</h3>
+                                    <div class="flex flex-wrap gap-1 justify-center">
+                                        ${cardHandHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    };
+
+                    const Card = (name, isFaceDown = false) => {
+                        if (isFaceDown) {
+                            return `
+                                <div class="w-16 h-24 bg-gray-500 rounded-md shadow-sm flex items-center justify-center text-center text-xs font-semibold text-gray-300">
+                                    手牌
+                                </div>
+                            `;
+                        }
+
+                        let cardType = '基礎牌';
+                        let cardColor = 'bg-gray-500';
+                        if (cardData.attackCards.includes(name)) {
+                            cardType = '攻擊牌';
+                            cardColor = 'bg-red-700';
+                        } else if (cardData.magicCards.includes(name)) {
+                            cardType = '法術牌';
+                            cardColor = 'bg-blue-700';
+                        } else if (cardData.skillCards.includes(name)) {
+                            cardType = '技能卡';
+                            cardColor = 'bg-yellow-700';
+                        }
+
+                        return `
+                            <div class="w-16 h-24 ${cardColor} rounded-md shadow-sm flex flex-col items-center justify-center text-center text-xs font-semibold text-white p-1">
+                                <span class="text-[10px] text-gray-300 mb-0.5">${cardType}</span>
+                                <span class="text-sm">${name}</span>
+                            </div>
+                        `;
+                    };
+                    
+                    const playerCardsHtml = players.map(player => playerCardHtml(player)).join('');
+
+                    contentHtml += `
+                        <div class="relative w-full min-h-[80vh] flex flex-col items-center justify-center p-4">
+                            <div id="player-container" class="flex flex-wrap items-center justify-center gap-4 w-full">
+                                ${playerCardsHtml}
+                            </div>
+                            <div class="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                                ${BoardStatusHtml()}
+                            </div>
+                            <div class="absolute bottom-4 left-4 z-20">
+                                <button id="add-player-btn" class="bg-purple-600 text-white p-3 rounded-full shadow-lg hover:bg-purple-700 transition duration-300">
+                                    新增玩家
+                                </button>
+                            </div>
+                        </div>
+                        <div id="add-player-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
+                            <div class="bg-gray-800 p-6 rounded-xl shadow-lg border-2 border-purple-500 w-full max-w-sm">
+                                <h3 class="text-xl font-bold text-purple-400 mb-4">新增玩家</h3>
+                                <div class="mb-4">
+                                    <label class="block text-gray-300 mb-2">玩家名稱:</label>
+                                    <input type="text" id="new-player-name-input" class="w-full p-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                                </div>
+                                <div class="mb-4">
+                                    <label class="block text-gray-300 mb-2">陣營:</label>
+                                    <select id="new-player-team-input" class="w-full p-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                        <option value="紅">紅隊</option>
+                                        <option value="藍">藍隊</option>
+                                    </select>
+                                </div>
+                                <div class="flex justify-end gap-2">
+                                    <button id="cancel-add-player-btn" class="py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition duration-300">取消</button>
+                                    <button id="confirm-add-player-btn" class="py-2 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition duration-300">確認新增</button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 提煉寶石/水晶模態視窗 -->
+                        <div id="refine-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
+                            <div class="bg-gray-800 p-6 rounded-xl shadow-lg border-2 border-green-500 w-full max-w-sm">
+                                <h3 class="text-xl font-bold text-green-400 mb-4">提煉寶石與水晶</h3>
+                                <p id="refine-modal-team-name" class="text-md text-gray-300 mb-2"></p>
+                                <div class="mb-4">
+                                    <label class="block text-gray-300 mb-2">提煉寶石數量 (總上限 ${REFINEMENT_LIMIT}):</label>
+                                    <input type="number" min="0" value="0" id="refine-gem-input" class="w-full p-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                                </div>
+                                <div class="mb-4">
+                                    <label class="block text-gray-300 mb-2">提煉水晶數量 (總上限 ${REFINEMENT_LIMIT}):</label>
+                                    <input type="number" min="0" value="0" id="refine-crystal-input" class="w-full p-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                                </div>
+                                <div id="refine-modal-message" class="text-red-400 text-sm mb-4"></div>
+                                <div class="flex justify-end gap-2">
+                                    <button id="cancel-refine-btn" class="py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition duration-300">取消</button>
+                                    <button id="confirm-refine-btn" class="py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">確認提煉</button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 指示物模態視窗 (新增) -->
+                        <div id="marker-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
+                            <div class="bg-gray-800 p-6 rounded-xl shadow-lg border-2 border-yellow-500 w-full max-w-sm">
+                                <h3 id="marker-modal-title" class="text-xl font-bold text-yellow-400 mb-4">獲得指示物</h3>
+                                <p id="marker-modal-player-name" class="text-md text-gray-300 mb-2"></p>
+                                <div class="mb-4">
+                                    <label class="block text-gray-300 mb-2">黃色指示物數量:</label>
+                                    <input type="number" min="0" value="0" id="marker-yellow-input" class="w-full p-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500" />
+                                </div>
+                                <div class="mb-4">
+                                    <label class="block text-gray-300 mb-2">藍色指示物數量:</label>
+                                    <input type="number" min="0" value="0" id="marker-blue-input" class="w-full p-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div id="marker-modal-message" class="text-red-400 text-sm mb-4"></div>
+                                <div class="flex justify-end gap-2">
+                                    <button id="cancel-marker-btn" class="py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition duration-300">取消</button>
+                                    <button id="confirm-marker-btn" class="py-2 px-4 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition duration-300">確認</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                appRoot.innerHTML = contentHtml;
+                setupEventListeners();
+            };
+
+            const BoardStatusHtml = () => {
+                const currentPlayer = players.find(p => p.id === gameStatus.turnPlayerId);
+                const isRedTeamTurn = currentPlayer && currentPlayer.team === '紅';
+                const isBlueTeamTurn = currentPlayer && currentPlayer.team === '藍';
+
+                const refineButtonHtml = `
+                    <div class="w-full mt-2">
+                        <button id="refine-gem-crystal-btn" class="w-full py-2 px-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition duration-300 text-sm">
+                            提煉寶石/水晶
+                        </button>
+                    </div>
+                `;
+
+                // 戰績區的紅寶石轉換按鈕
+                const gemConversionButtonHtml = `
+                    <button id="convert-team-gem-btn" class="w-full py-2 px-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition duration-300 text-sm mt-2">
+                        轉換戰績區紅寶石為藍寶石
+                    </button>
+                `;
+                
+                const redTeamTotalResources = gameStatus.redTeam.redGems + gameStatus.redTeam.blueGems;
+                const blueTeamTotalResources = gameStatus.blueTeam.redGems + gameStatus.blueTeam.blueGems;
+
+                return `
+                <div class="bg-gray-700 p-6 rounded-xl shadow-lg flex flex-col items-center justify-center border-4 border-yellow-500 max-w-sm pointer-events-auto">
+                    <h2 class="text-2xl font-bold text-yellow-400 mb-2">星杯傳說</h2>
+                    <p class="text-lg text-gray-300 font-semibold mb-2">當前階段: ${gameStatus.gamePhase}</p>
+                    <p class="text-base text-gray-400 mt-1">輪到: ${gameStatus.turnPlayerId === '-' ? '-' : `玩家${gameStatus.turnPlayerId}`}</p>
+                    <div class="mt-4 w-full flex flex-col items-center gap-2">
+                        <div class="bg-gray-800 p-2 rounded-lg w-full">
+                            <h3 class="text-sm font-semibold text-gray-300 mb-1">戰績區</h3>
+                            <div class="flex justify-around items-center gap-4">
+                                <!-- 紅隊戰績 -->
+                                <div class="text-center flex-1">
+                                    <span class="text-red-500 font-bold">紅隊 (總上限: ${gameStatus.redTeam.resourceTotalLimit})</span>
+                                    <div class="flex flex-col items-center mt-2">
+                                        <!-- 紅寶石 -->
+                                        <div class="flex justify-center mt-1">
+                                            ${[...Array(gameStatus.redTeam.redGems)].map((_, i) => `<div key="red-gem-${i}" class="w-4 h-4 bg-red-600 rounded-full mx-0.5"></div>`).join('')}
+                                        </div>
+                                        <!-- 藍寶石 -->
+                                        <div class="flex justify-center mt-1">
+                                            ${[...Array(gameStatus.redTeam.blueGems)].map((_, i) => `<div key="red-team-blue-gem-${i}" class="w-4 h-4 bg-blue-600 rounded-full mx-0.5"></div>`).join('')}
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- 藍隊戰績 -->
+                                <div class="text-center flex-1">
+                                    <span class="text-blue-500 font-bold">藍隊 (總上限: ${gameStatus.blueTeam.resourceTotalLimit})</span>
+                                    <div class="flex flex-col items-center mt-2">
+                                        <!-- 紅寶石 -->
+                                        <div class="flex justify-center mt-1">
+                                            ${[...Array(gameStatus.blueTeam.redGems)].map((_, i) => `<div key="blue-team-red-gem-${i}" class="w-4 h-4 bg-red-600 rounded-full mx-0.5"></div>`).join('')}
+                                        </div>
+                                        <!-- 藍寶石 -->
+                                        <div class="flex justify-center mt-1">
+                                            ${[...Array(gameStatus.blueTeam.blueGems)].map((_, i) => `<div key="blue-team-blue-gem-${i}" class="w-4 h-4 bg-blue-600 rounded-full mx-0.5"></div>`).join('')}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-800 p-2 rounded-lg w-full">
+                            <h3 class="text-sm font-semibold text-gray-300 mb-1">星杯區</h3>
+                            <div class="flex justify-around items-center">
+                                <div class="text-center">
+                                    <span class="text-red-500 font-bold">紅隊</span>
+                                    <p class="text-xl font-bold mt-0.5">${gameStatus.redTeam.chalice}</p>
+                                </div>
+                                <div class="text-center">
+                                    <span class="text-blue-500 font-bold">藍隊</span>
+                                    <p class="text-xl font-bold mt-0.5">${gameStatus.blueTeam.chalice}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-800 p-2 rounded-lg w-full">
+                            <h3 class="text-sm font-semibold text-gray-300 mb-1">士氣區</h3>
+                            <div class="flex justify-around items-center">
+                                <div class="text-center">
+                                    <span class="text-red-500 font-bold">紅隊</span>
+                                    <p class="text-xl font-bold mt-0.5">${gameStatus.redMorale}</p>
+                                </div>
+                                <div class="text-center">
+                                    <span class="text-blue-500 font-bold">藍隊</span>
+                                    <p class="text-xl font-bold mt-0.5">${gameStatus.blueMorale}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="w-full flex flex-wrap justify-between gap-2 mt-2">
+                            <div class="flex flex-col items-center">
+                                <div class="w-16 h-24 bg-gray-500 rounded-md shadow-sm flex items-center justify-center text-center text-xs font-semibold text-gray-300">
+                                    公用牌庫<br/>(${gameStatus.publicDeckCount}張)
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="w-16 h-24 bg-gray-500 rounded-md shadow-sm flex items-center justify-center text-center text-xs font-semibold text-gray-300">
+                                    棄牌堆<br/>(${gameStatus.discardPileCount}張)
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="w-16 h-24 bg-gray-500 rounded-md shadow-sm flex items-center justify-center text-center text-xs font-semibold text-gray-300">
+                                    治療卡堆<br/>(${gameStatus.healingDeckCount}張)
+                                </div>
+                            </div>
+                        </div>
+                        <div class="w-full mt-4 flex flex-col gap-2">
+                            <h3 class="text-md font-semibold text-gray-300 text-center mb-1">測試戰績功能</h3>
+                            <button id="test-red-active-attack-btn" class="w-full py-2 px-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition duration-300 text-sm">
+                                紅隊主動攻擊成功 (+1 紅寶石)
+                            </button>
+                            <button id="test-red-reactive-attack-btn" class="w-full py-2 px-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition duration-300 text-sm">
+                                紅隊應戰攻擊成功 (+1 藍寶石)
+                            </button>
+                            <button id="test-blue-active-attack-btn" class="w-full py-2 px-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition duration-300 text-sm">
+                                藍隊主動攻擊成功 (+1 紅寶石)
+                            </button>
+                            <button id="test-blue-reactive-attack-btn" class="w-full py-2 px-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition duration-300 text-sm">
+                                藍隊應戰攻擊成功 (+1 藍寶石)
+                            </button>
+                            ${refineButtonHtml}
+                            ${gemConversionButtonHtml}
+                            <h3 class="text-md font-semibold text-gray-300 text-center mt-4">治療卡功能</h3>
+                            <div class="flex justify-around gap-2 mt-2">
+                                <button id="gain-healing-card-btn" class="w-1/2 py-2 px-3 bg-yellow-600 text-white rounded-lg font-semibold hover:bg-yellow-700 transition duration-300 text-sm">
+                                    獲得治療卡
+                                </button>
+                                <button id="use-healing-card-btn" class="w-1/2 py-2 px-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition duration-300 text-sm">
+                                    消耗治療卡
+                                </button>
+                            </div>
+                            <h3 class="text-md font-semibold text-gray-300 text-center mt-4">指示物功能</h3>
+                            <div class="flex justify-around gap-2 mt-2">
+                                <button id="gain-marker-btn" class="w-1/2 py-2 px-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition duration-300 text-sm">
+                                    獲得指示物
+                                </button>
+                                <button id="use-marker-btn" class="w-1/2 py-2 px-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition duration-300 text-sm">
+                                    消耗指示物
+                                </button>
+                            </div>
+                            <button id="end-turn-btn" class="w-full py-2 px-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition duration-300 text-sm mt-4">
+                                結束回合
+                            </button>
+                            <button id="return-to-settings" class="w-full py-2 px-3 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-500 transition duration-300 text-sm">
+                                返回設定
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            };
+
+            // 事件監聽
+            const setupEventListeners = () => {
+                if (gameStatus.gamePhase === '設置中') {
+                    const playerCountInput = document.getElementById('player-count-input');
+                    if (playerCountInput) {
+                        playerCountInput.addEventListener('change', (e) => {
+                            const newCount = parseInt(e.target.value, 10);
+                            if (newCount > 0) {
+                                const newNames = Array.from({ length: newCount }, (_, i) => tempPlayerNames[i] || `玩家${i + 1}`);
+                                tempPlayerNames = newNames;
+                                render();
+                            }
+                        });
+                    }
+
+                    tempPlayerNames.forEach((_, index) => {
+                        const input = document.getElementById(`player-name-input-${index}`);
+                        if (input) {
+                            input.addEventListener('change', (e) => {
+                                tempPlayerNames[index] = e.target.value;
+                            });
+                        }
+                    });
+
+                    const applyBtn = document.getElementById('apply-settings-btn');
+                    if (applyBtn) {
+                        applyBtn.addEventListener('click', () => {
+                            const newPlayers = tempPlayerNames.map((name, index) => {
+                                const team = index % 2 === 0 ? '紅' : '藍';
+                                const character = cardData.characterCards[Math.floor(Math.random() * cardData.characterCards.length)];
+                                const skillCard = (character === '仲裁者') ? '審判' : (character === '守護者') ? '守護' : '祝福';
+
+                                return {
+                                    id: index + 1,
+                                    name: name,
+                                    team: team,
+                                    character: character,
+                                    hand: ['風神斬', '中毒'],
+                                    specialCard: skillCard,
+                                    yellowMarkersFaceDown: 8,
+                                    yellowMarkersFaceUp: 0,
+                                    blueMarkersFaceDown: 8,
+                                    blueMarkersFaceUp: 0,
+                                    gems: 0,
+                                    crystals: 0,
+                                    healingCardsFaceDown: 4,
+                                    healingCardsFaceUp: 0,
+                                };
+                            });
+                            players = newPlayers;
+                            currentUser = players[Math.floor(Math.random() * players.length)];
+                            gameStatus.gamePhase = '進行中';
+                            gameStatus.turnPlayerId = 1;
+                            render();
+                        });
+                    }
+                } else {
+                    const returnBtn = document.getElementById('return-to-settings');
+                    if (returnBtn) {
+                        returnBtn.addEventListener('click', () => {
+                            gameStatus.gamePhase = '設置中';
+                            render();
+                        });
+                    }
+                    
+                    const endTurnBtn = document.getElementById('end-turn-btn');
+                    if (endTurnBtn) {
+                        endTurnBtn.addEventListener('click', () => {
+                            const turnPlayerIndex = players.findIndex(p => p.id === gameStatus.turnPlayerId);
+                            const nextPlayerIndex = (turnPlayerIndex + 1) % players.length;
+                            gameStatus.turnPlayerId = players[nextPlayerIndex].id;
+                            render();
+                        });
+                    }
+
+                    // 修正戰績區測試按鈕的邏輯，檢查總上限
+                    const teamResourceTotalLimit = gameStatus.redTeam.resourceTotalLimit;
+
+                    document.getElementById('test-red-active-attack-btn')?.addEventListener('click', () => {
+                        if (gameStatus.redTeam.redGems + gameStatus.redTeam.blueGems < teamResourceTotalLimit) {
+                            gameStatus.redTeam.redGems += 1;
+                        }
+                        render();
+                    });
+
+                    document.getElementById('test-red-reactive-attack-btn')?.addEventListener('click', () => {
+                        if (gameStatus.redTeam.redGems + gameStatus.redTeam.blueGems < teamResourceTotalLimit) {
+                            gameStatus.redTeam.blueGems += 1;
+                        }
+                        render();
+                    });
+                    
+                    document.getElementById('test-blue-active-attack-btn')?.addEventListener('click', () => {
+                        if (gameStatus.blueTeam.redGems + gameStatus.blueTeam.blueGems < teamResourceTotalLimit) {
+                            gameStatus.blueTeam.redGems += 1;
+                        }
+                        render();
+                    });
+
+                    document.getElementById('test-blue-reactive-attack-btn')?.addEventListener('click', () => {
+                        if (gameStatus.blueTeam.redGems + gameStatus.blueTeam.blueGems < teamResourceTotalLimit) {
+                            gameStatus.blueTeam.blueGems += 1;
+                        }
+                        render();
+                    });
+
+                    // 戰績區紅寶石轉換按鈕
+                    document.getElementById('convert-team-gem-btn')?.addEventListener('click', () => {
+                        const currentPlayer = players.find(p => p.id === gameStatus.turnPlayerId);
+                        if (!currentPlayer) {
+                             console.error("沒有當前玩家，無法執行操作。");
+                             return;
+                        }
+
+                        const teamData = currentPlayer.team === '紅' ? gameStatus.redTeam : gameStatus.blueTeam;
+
+                        if (teamData.redGems > 0) {
+                            teamData.redGems -= 1;
+                            teamData.blueGems += 1;
+                            render();
+                        } else {
+                            console.log("戰績區沒有足夠的紅寶石可供轉換。");
+                        }
+                    });
+
+                    // 玩家卡片上的寶石轉換按鈕的事件監聽器
+                    document.querySelectorAll('.convert-gem-btn').forEach(button => {
+                        button.addEventListener('click', (e) => {
+                            const playerId = parseInt(e.target.dataset.playerId, 10);
+                            const player = players.find(p => p.id === playerId);
+                            
+                            if (player && player.gems > 0) {
+                                // 檢查玩家是否達到個人資源上限
+                                if (player.gems + player.crystals < PLAYER_RESOURCE_TOTAL_LIMIT) {
+                                    player.gems -= 1;
+                                    player.crystals += 1;
+                                    render();
+                                } else {
+                                    console.log(`玩家 ${player.name} 的個人資源已達上限。`);
+                                }
+                            } else {
+                                console.log('沒有足夠的寶石可供轉換。');
+                            }
+                        });
+                    });
+                    
+                    // 提煉寶石/水晶的事件監聽器
+                    const refineModal = document.getElementById('refine-modal');
+                    const refineModalTeamName = document.getElementById('refine-modal-team-name');
+                    const refineGemInput = document.getElementById('refine-gem-input');
+                    const refineCrystalInput = document.getElementById('refine-crystal-input');
+                    const refineModalMessage = document.getElementById('refine-modal-message');
+                    const confirmRefineBtn = document.getElementById('confirm-refine-btn');
+                    const cancelRefineBtn = document.getElementById('cancel-refine-btn');
+                    
+                    let refiningTeam = null;
+
+                    const showRefineModal = (team) => {
+                        refiningTeam = team;
+                        refineModalTeamName.textContent = `當前隊伍: ${team}隊`;
+                        refineGemInput.value = 0;
+                        refineCrystalInput.value = 0;
+                        refineModalMessage.textContent = '';
+                        refineModal.classList.remove('hidden');
+                    };
+
+                    const handleRefine = () => {
+                        const currentPlayer = players.find(p => p.id === gameStatus.turnPlayerId);
+                        if (!currentPlayer) {
+                             refineModalMessage.textContent = "沒有當前玩家，無法執行操作。";
+                             return;
+                        }
+                        const teamData = gameStatus[refiningTeam === '紅' ? 'redTeam' : 'blueTeam'];
+
+                        const gemsToRefine = parseInt(refineGemInput.value, 10);
+                        const crystalsToRefine = parseInt(refineCrystalInput.value, 10);
+                        const totalResourcesToRefine = gemsToRefine + crystalsToRefine;
+
+                        // 驗證輸入
+                        if (gemsToRefine < 0 || crystalsToRefine < 0) {
+                             refineModalMessage.textContent = `提煉數量不能為負值。`;
+                             return;
+                        }
+                        // 提煉總數不能超過上限
+                        if (totalResourcesToRefine > REFINEMENT_LIMIT) {
+                            refineModalMessage.textContent = `單次提煉寶石與水晶的總數量不能超過 ${REFINEMENT_LIMIT}。`;
+                            return;
+                        }
+                        if (totalResourcesToRefine === 0) {
+                            refineModalMessage.textContent = '請至少輸入一個提煉數量。';
+                            return;
+                        }
+
+                        // 驗證資源是否足夠
+                        if (gemsToRefine > teamData.redGems) {
+                            refineModalMessage.textContent = `提煉失敗：戰績區沒有足夠的紅寶石。`;
+                            return;
+                        }
+                        if (crystalsToRefine > teamData.blueGems) {
+                            refineModalMessage.textContent = `提煉失敗：戰績區沒有足夠的藍寶石(水晶)。`;
+                            return;
+                        }
+
+                        // 驗證玩家個人上限 (寶石 + 水晶總數)
+                        if (currentPlayer.gems + currentPlayer.crystals + totalResourcesToRefine > PLAYER_RESOURCE_TOTAL_LIMIT) {
+                            refineModalMessage.textContent = `提煉失敗：玩家個人寶石與水晶總數已達上限 (${PLAYER_RESOURCE_TOTAL_LIMIT})。`;
+                            return;
+                        }
+
+                        // 執行提煉
+                        teamData.redGems -= gemsToRefine;
+                        teamData.blueGems -= crystalsToRefine;
+                        currentPlayer.gems += gemsToRefine;
+                        currentPlayer.crystals += crystalsToRefine;
+                        
+                        refineModal.classList.add('hidden');
+                        render();
+                    };
+
+                    const refineGemCrystalBtn = document.getElementById('refine-gem-crystal-btn');
+                    if (refineGemCrystalBtn) {
+                        refineGemCrystalBtn.addEventListener('click', () => {
+                            const currentPlayer = players.find(p => p.id === gameStatus.turnPlayerId);
+                            if (currentPlayer) {
+                                showRefineModal(currentPlayer.team);
+                            }
+                        });
+                    }
+                    
+                    confirmRefineBtn?.addEventListener('click', handleRefine);
+                    cancelRefineBtn?.addEventListener('click', () => refineModal.classList.add('hidden'));
+
+                    const addPlayerBtn = document.getElementById('add-player-btn');
+                    const addPlayerModal = document.getElementById('add-player-modal');
+                    const confirmAddPlayerBtn = document.getElementById('confirm-add-player-btn');
+                    const cancelAddPlayerBtn = document.getElementById('cancel-add-player-btn');
+                    const newPlayerNameInput = document.getElementById('new-player-name-input');
+                    const newPlayerTeamInput = document.getElementById('new-player-team-input');
+
+                    if (addPlayerBtn) {
+                        addPlayerBtn.addEventListener('click', () => {
+                            addPlayerModal.classList.remove('hidden');
+                        });
+                    }
+
+                    if (cancelAddPlayerBtn) {
+                        cancelAddPlayerBtn.addEventListener('click', () => {
+                            addPlayerModal.classList.add('hidden');
+                        });
+                    }
+
+                    if (confirmAddPlayerBtn) {
+                        confirmAddPlayerBtn.addEventListener('click', () => {
+                            const newPlayerName = newPlayerNameInput.value.trim();
+                            const newPlayerTeam = newPlayerTeamInput.value;
+                            if (newPlayerName) {
+                                const newPlayerId = players.length + 1;
+                                const newPlayer = {
+                                    id: newPlayerId,
+                                    name: newPlayerName,
+                                    team: newPlayerTeam,
+                                    character: cardData.characterCards[Math.floor(Math.random() * cardData.characterCards.length)],
+                                    skillCard: '審判', // 簡化處理
+                                    hand: ['風神斬', '中毒'],
+                                    yellowMarkersFaceDown: 8,
+                                    yellowMarkersFaceUp: 0,
+                                    blueMarkersFaceDown: 8,
+                                    blueMarkersFaceUp: 0,
+                                    gems: 0,
+                                    crystals: 0,
+                                    healingCardsFaceDown: 4,
+                                    healingCardsFaceUp: 0,
+                                };
+                                players.push(newPlayer);
+                                addPlayerModal.classList.add('hidden');
+                                render();
+                            } else {
+                                console.error("玩家名稱不能為空。");
+                            }
+                        });
+                    }
+                    
+                    const playerContainer = document.getElementById('player-container');
+                    let draggingPlayerCard = null;
+
+                    if (playerContainer) {
+                        playerContainer.addEventListener('dragstart', (e) => {
+                            const playerCard = e.target.closest('.player-card');
+                            if (playerCard) {
+                                draggingPlayerCard = playerCard;
+                                e.dataTransfer.setData('text/plain', draggingPlayerCard.dataset.playerId);
+                                setTimeout(() => {
+                                    draggingPlayerCard.classList.add('dragging');
+                                }, 0);
+                            }
+                        });
+                        
+                        playerContainer.addEventListener('dragover', (e) => {
+                            e.preventDefault();
+                            const draggable = document.querySelector('.dragging');
+                            if (draggable) {
+                                const afterElement = getDragAfterElement(playerContainer, e.clientY, e.clientX);
+                                if (afterElement == null) {
+                                    playerContainer.appendChild(draggable);
+                                } else {
+                                    playerContainer.insertBefore(draggable, afterElement);
+                                }
+                            }
+                        });
+
+                        playerContainer.addEventListener('drop', (e) => {
+                            e.preventDefault();
+                            if (draggingPlayerCard) {
+                                draggingPlayerCard.classList.remove('dragging');
+                                const newPlayersOrder = Array.from(playerContainer.children)
+                                    .filter(card => card.classList.contains('player-card'))
+                                    .map(card => {
+                                        const id = parseInt(card.dataset.playerId, 10);
+                                        return players.find(p => p.id === id);
+                                    });
+                                players = newPlayersOrder;
+                                draggingPlayerCard = null;
+                            }
+                        });
+
+                        playerContainer.addEventListener('dragend', () => {
+                            if (draggingPlayerCard) {
+                                draggingPlayerCard.classList.remove('dragging');
+                                draggingPlayerCard = null;
+                            }
+                        });
+
+                        function getDragAfterElement(container, y, x) {
+                            const draggableElements = [...container.querySelectorAll('.player-card:not(.dragging)')];
+                            
+                            return draggableElements.reduce((closest, child) => {
+                                const rect = child.getBoundingClientRect();
+                                const distance = Math.sqrt(Math.pow(y - rect.top - rect.height / 2, 2) + Math.pow(x - rect.left - rect.width / 2, 2));
+                                if (closest === null || distance < closest.distance) {
+                                    return { distance: distance, element: child };
+                                } else {
+                                    return closest;
+                                }
+                            }, null).element;
+                        }
+                    }
+
+                    // 治療卡功能
+                    const gainHealingCardBtn = document.getElementById('gain-healing-card-btn');
+                    if(gainHealingCardBtn) {
+                        gainHealingCardBtn.addEventListener('click', () => {
+                            const currentPlayer = players.find(p => p.id === gameStatus.turnPlayerId);
+                            if (currentPlayer) {
+                                if (currentPlayer.healingCardsFaceUp < HEALING_CARD_TOTAL_LIMIT && gameStatus.healingDeckCount > 0) {
+                                    currentPlayer.healingCardsFaceUp += 1;
+                                    currentPlayer.healingCardsFaceDown -= 1;
+                                    gameStatus.healingDeckCount -= 1;
+                                    render();
+                                    console.log(`玩家 ${currentPlayer.name} 獲得一張治療卡。`);
+                                } else {
+                                    console.log('無法獲得治療卡：已達上限或牌庫不足。');
+                                }
+                            }
+                        });
+                    }
+
+                    const useHealingCardBtn = document.getElementById('use-healing-card-btn');
+                    if(useHealingCardBtn) {
+                        useHealingCardBtn.addEventListener('click', () => {
+                            const currentPlayer = players.find(p => p.id === gameStatus.turnPlayerId);
+                            if (currentPlayer) {
+                                if (currentPlayer.healingCardsFaceUp > 0) {
+                                    currentPlayer.healingCardsFaceUp -= 1;
+                                    currentPlayer.healingCardsFaceDown += 1;
+                                    gameStatus.healingDeckCount += 1; // 消耗的治療卡放回牌庫
+                                    render();
+                                    console.log(`玩家 ${currentPlayer.name} 消耗一張治療卡來抵擋傷害。`);
+                                } else {
+                                    console.log('無法消耗治療卡：沒有正面朝上的治療卡。');
+                                }
+                            }
+                        });
+                    }
+
+                    // 指示物功能
+                    const markerModal = document.getElementById('marker-modal');
+                    const markerModalTitle = document.getElementById('marker-modal-title');
+                    const markerModalPlayerName = document.getElementById('marker-modal-player-name');
+                    const markerYellowInput = document.getElementById('marker-yellow-input');
+                    const markerBlueInput = document.getElementById('marker-blue-input');
+                    const markerModalMessage = document.getElementById('marker-modal-message');
+                    const confirmMarkerBtn = document.getElementById('confirm-marker-btn');
+                    const cancelMarkerBtn = document.getElementById('cancel-marker-btn');
+                    
+                    const showMarkerModal = (type) => {
+                        markerModalType = type;
+                        const currentPlayer = players.find(p => p.id === gameStatus.turnPlayerId);
+                        if (!currentPlayer) {
+                            console.error("沒有當前玩家，無法執行操作。");
+                            return;
+                        }
+                        markerModalTitle.textContent = type === 'gain' ? '獲得指示物' : '消耗指示物';
+                        markerModalPlayerName.textContent = `當前玩家: ${currentPlayer.name}`;
+                        markerYellowInput.value = 0;
+                        markerBlueInput.value = 0;
+                        markerModalMessage.textContent = '';
+                        markerModal.classList.remove('hidden');
+                    };
+
+                    const handleMarkerAction = () => {
+                        const currentPlayer = players.find(p => p.id === gameStatus.turnPlayerId);
+                        if (!currentPlayer) {
+                            markerModalMessage.textContent = "沒有當前玩家，無法執行操作。";
+                            return;
+                        }
+                        const yellowCount = parseInt(markerYellowInput.value, 10);
+                        const blueCount = parseInt(markerBlueInput.value, 10);
+
+                        if (yellowCount < 0 || blueCount < 0) {
+                            markerModalMessage.textContent = '數量不能為負值。';
+                            return;
+                        }
+                        if (yellowCount === 0 && blueCount === 0) {
+                            markerModalMessage.textContent = '請輸入至少一個指示物數量。';
+                            return;
+                        }
+
+                        if (markerModalType === 'gain') {
+                            if (yellowCount > gameStatus.totalYellowMarkers) {
+                                markerModalMessage.textContent = `無法獲得：黃色指示物庫存不足。`;
+                                return;
+                            }
+                            if (blueCount > gameStatus.totalBlueMarkers) {
+                                markerModalMessage.textContent = `無法獲得：藍色指示物庫存不足。`;
+                                return;
+                            }
+                            currentPlayer.yellowMarkersFaceDown += yellowCount;
+                            currentPlayer.blueMarkersFaceDown += blueCount;
+                            gameStatus.totalYellowMarkers -= yellowCount;
+                            gameStatus.totalBlueMarkers -= blueCount;
+                        } else if (markerModalType === 'use') {
+                            if (yellowCount > currentPlayer.yellowMarkersFaceUp) {
+                                markerModalMessage.textContent = `無法消耗：玩家沒有足夠的正面黃色指示物。`;
+                                return;
+                            }
+                            if (blueCount > currentPlayer.blueMarkersFaceUp) {
+                                markerModalMessage.textContent = `無法消耗：玩家沒有足夠的正面藍色指示物。`;
+                                return;
+                            }
+                            currentPlayer.yellowMarkersFaceUp -= yellowCount;
+                            currentPlayer.blueMarkersFaceUp -= blueCount;
+                            gameStatus.totalYellowMarkers += yellowCount;
+                            gameStatus.totalBlueMarkers += blueCount;
+                        }
+                        
+                        markerModal.classList.add('hidden');
+                        render();
+                    };
+
+                    const gainMarkerBtn = document.getElementById('gain-marker-btn');
+                    const useMarkerBtn = document.getElementById('use-marker-btn');
+                    if (gainMarkerBtn) {
+                        gainMarkerBtn.addEventListener('click', () => showMarkerModal('gain'));
+                    }
+                    if (useMarkerBtn) {
+                        useMarkerBtn.addEventListener('click', () => showMarkerModal('use'));
+                    }
+                    confirmMarkerBtn?.addEventListener('click', handleMarkerAction);
+                    cancelMarkerBtn?.addEventListener('click', () => markerModal.classList.add('hidden'));
+                }
+            };
+
+            if (chatToggleBtn) {
+                chatToggleBtn.addEventListener('click', () => {
+                    chatWindow.classList.toggle('hidden');
+                    chatToggleBtn.textContent = chatWindow.classList.contains('hidden') ? '開啟玩家聊天' : '關閉玩家聊天';
+                });
+            }
+            if (chatCloseBtn) {
+                chatCloseBtn.addEventListener('click', () => {
+                    chatWindow.classList.add('hidden');
+                    chatToggleBtn.textContent = '開啟玩家聊天';
+                });
+            }
+
+            const setupChatListener = () => {
+                if (!db) {
+                    console.error("Firestore is not initialized.");
+                    return;
+                }
+
+                const chatCollectionPath = `/artifacts/${appId}/public/data/chat_messages`;
+                const messagesRef = collection(db, chatCollectionPath);
+                const loadingText = document.getElementById('chat-loading');
+                if (loadingText) {
+                    loadingText.style.display = 'block';
+                }
+                
+                onSnapshot(messagesRef, (querySnapshot) => {
+                    const messages = [];
+                    querySnapshot.forEach(doc => {
+                        const data = doc.data();
+                        messages.push(data);
+                    });
+                    messages.sort((a, b) => (a.timestamp ? a.timestamp.toDate() : 0) - (b.timestamp ? b.timestamp.toDate() : 0));
+                    renderChatMessages(messages);
+                    if (loadingText) {
+                        loadingText.style.display = 'none';
+                    }
+                });
+            };
+
+            const renderChatMessages = (messages) => {
+                if (!chatHistoryDiv) return;
+                chatHistoryDiv.innerHTML = '';
+                if (messages.length === 0) {
+                    chatHistoryDiv.innerHTML = `<p class="text-gray-400 text-center">還沒有人發送訊息...</p>`;
+                }
+                messages.forEach(msg => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `flex mb-2 ${msg.userId === userId ? 'justify-end' : 'justify-start'}`;
+                    messageDiv.innerHTML = `
+                        <div>
+                            <div class="text-xs ${msg.userId === userId ? 'text-right text-purple-400' : 'text-left text-blue-400'}">
+                                ${msg.userName || '未知玩家'}
+                            </div>
+                            <div class="p-3 rounded-xl max-w-[80%] break-words ${msg.userId === userId ? 'chat-message-user' : 'chat-message-other'}">
+                                ${msg.text}
+                            </div>
+                        </div>
+                    `;
+                    chatHistoryDiv.prepend(messageDiv);
+                });
+            };
+
+            const handleChatSend = async () => {
+                if (!db || !userId) {
+                    console.error("Firebase is not ready.");
+                    return;
+                }
+
+                const chatText = chatInput.value.trim();
+                if (!chatText) return;
+
+                chatInput.value = '';
+                chatInput.disabled = true;
+                chatSendBtn.disabled = true;
+
+                const chatCollectionPath = `/artifacts/${appId}/public/data/chat_messages`;
+                try {
+                    await addDoc(collection(db, chatCollectionPath), {
+                        userId: userId,
+                        userName: currentUser ? currentUser.name : '未知玩家',
+                        text: chatText,
+                        timestamp: serverTimestamp()
+                    });
+                } catch (e) {
+                    console.error("發送訊息失敗:", e);
+                } finally {
+                    chatInput.disabled = false;
+                    chatSendBtn.disabled = false;
+                }
+            };
+
+            if (chatSendBtn && chatInput) {
+                chatSendBtn.addEventListener('click', handleChatSend);
+                chatInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        handleChatSend();
+                    }
+                });
+            }
+
+            initFirebase();
+            render();
+        });
+    </script>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+    <div id="app-root"></div>
+
+    <!-- 聊天室 UI (修正後) -->
+    <button id="chat-toggle" class="fixed bottom-4 right-4 z-50 bg-blue-500 text-white rounded-full p-4 shadow-lg hover:bg-blue-600 transition duration-300 font-semibold">
+        開啟玩家聊天
+    </button>
+    <div id="chat-window" class="fixed bottom-20 right-4 z-40 w-80 h-[400px] bg-gray-800 rounded-xl shadow-2xl flex flex-col hidden">
+        <!-- 聊天室頂部標題 -->
+        <div class="p-4 bg-gray-900 rounded-t-xl flex justify-between items-center">
+            <h3 class="text-lg font-bold text-white">玩家聊天室</h3>
+            <button id="chat-close" class="text-gray-400 hover:text-white transition duration-300">
+                <svg xmlns="http://www.w3.org/2d00/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <!-- 聊天訊息歷史記錄 -->
+        <div id="chat-history" class="flex-grow p-4 overflow-y-auto flex flex-col-reverse">
+            <!-- 聊天訊息將在此處動態載入 -->
+        </div>
+        <!-- 聊天室載入指示器 -->
+        <div id="chat-loading" class="p-4 text-center text-gray-400 hidden">載入訊息中...</div>
+        <!-- 聊天輸入區 -->
+        <div class="p-4 bg-gray-900 rounded-b-xl flex gap-2">
+            <input type="text" id="chat-input" placeholder="輸入訊息..." class="flex-grow p-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <button id="chat-send" class="bg-blue-500 text-white p-2 rounded-lg font-semibold hover:bg-blue-600 transition duration-300">
+                傳送
+            </button>
+        </div>
+    </div>
+</body>
+</html>

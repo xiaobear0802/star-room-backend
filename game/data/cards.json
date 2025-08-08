@@ -1,0 +1,42 @@
+[
+  {
+    "card_type": "攻擊",
+    "card_name": "致命一擊",
+    "card_effect": {
+      "damage": 3,
+      "target": "單體"
+    },
+    "attack_value": 3,
+    "magic_type": null
+  },
+  {
+    "card_type": "魔法",
+    "card_name": "治療之光",
+    "card_effect": {
+      "heal": 2,
+      "target": "單體"
+    },
+    "attack_value": null,
+    "magic_type": "光"
+  },
+  {
+    "card_type": "攻擊",
+    "card_name": "橫掃",
+    "card_effect": {
+      "damage": 2,
+      "target": "全體"
+    },
+    "attack_value": 2,
+    "magic_type": null
+  },
+  {
+    "card_type": "魔法",
+    "card_name": "護盾",
+    "card_effect": {
+      "armor": 2,
+      "target": "單體"
+    },
+    "attack_value": null,
+    "magic_type": "無"
+  }
+]

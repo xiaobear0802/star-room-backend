@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>紅藍隊抽卡遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 淺灰色背景 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff; /* 白色容器背景 */
+            border-radius: 1.5rem; /* 大圓角 */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); /* 柔和陰影 */
+            padding: 2rem;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .card-display {
+            background-color: #e0f2f7; /* 淺藍色背景 */
+            border: 2px solid #81d4fa; /* 藍色邊框 */
+            border-radius: 1rem;
+            padding: 2rem;
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 2.5rem; /* 大字體 */
+            font-weight: 700;
+            color: #0288d1; /* 深藍色文字 */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+        }
+        .card-display.drawn {
+            transform: scale(1.05);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+        }
+        .button-primary {
+            background-color: #3b82f6; /* 藍色按鈕 */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .button-primary:hover {
+            background-color: #2563eb; /* 深藍色 */
+            transform: translateY(-2px);
+        }
+        .button-primary:active {
+            transform: translateY(0);
+        }
+        .button-disabled {
+            background-color: #9ca3af; /* 灰色禁用按鈕 */
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .button-disabled:hover {
+            background-color: #9ca3af;
+            transform: none;
+        }
+        .button-secondary {
+            background-color: #cbd5e1; /* 淺灰色按鈕 */
+            color: #334155;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+        .button-secondary:hover {
+            background-color: #aeb9c9; /* 稍深灰色 */
+            transform: translateY(-2px);
+        }
+        .button-secondary:active {
+            transform: translateY(0);
+        }
+        .message-box {
+            background-color: #fff3cd; /* 警告黃色背景 */
+            color: #664d03; /* 警告黃色文字 */
+            border: 1px solid #ffecb5;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            display: none; /* 預設隱藏 */
+        }
+        .message-box.show {
+            display: block;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+            display: none;
+        }
+        .loading-spinner.show {
+            display: block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .player-info {
+            font-size: 0.9rem;
+            color: #64748b;
+            margin-bottom: 1rem;
+        }
+        .card-counts {
+            display: flex;
+            justify-content: space-around;
+            gap: 1rem;
+            margin-top: 1rem;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        .red-count {
+            color: #dc2626; /* 紅色 */
+        }
+        .blue-count {
+            color: #2563eb; /* 藍色 */
+        }
+        .drawn-cards-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            background-color: #f8fafc;
+        }
+        .drawn-cards-list ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .drawn-cards-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px dashed #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .drawn-cards-list li:last-child {
+            border-bottom: none;
+        }
+        .drawn-card-name {
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .drawn-by-user {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-gray-800 mb-4">紅藍隊抽卡遊戲</h1>
+
+        <div class="player-info">
+            <p>你的 ID: <span id="userIdDisplay" class="font-semibold text-blue-600">載入中...</span></p>
+        </div>
+
+        <div class="mb-4">
+            <label for="playerNameInput" class="block text-gray-700 text-sm font-bold mb-2">你的玩家名稱:</label>
+            <input type="text" id="playerNameInput" placeholder="輸入你的名稱" value="玩家"
+                   class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                   maxlength="20">
+        </div>
+
+        <div class="mb-4">
+            <label for="totalCardsInput" class="block text-gray-700 text-sm font-bold mb-2">總卡牌數量 (偶數為佳):</label>
+            <input type="number" id="totalCardsInput" value="20" min="2" step="2"
+                   class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+        </div>
+
+        <div class="card-counts">
+            <p>紅隊卡牌: <span id="redCardsCount" class="red-count">0</span></p>
+            <p>藍隊卡牌: <span id="blueCardsCount" class="blue-count">0</span></p>
+        </div>
+
+        <div id="messageBox" class="message-box"></div>
+
+        <div id="cardDisplay" class="card-display">
+            點擊抽卡
+        </div>
+
+        <button id="drawCardButton" class="button-primary w-full">抽一張牌</button>
+        <button id="resetGameButton" class="button-secondary w-full">重置遊戲</button>
+
+        <div class="mt-6">
+            <h2 class="text-xl font-semibold text-gray-700 mb-3">已抽走的牌</h2>
+            <div id="drawnCardsList" class="drawn-cards-list">
+                <ul id="drawnCardsUl">
+                    <!-- 已抽走的牌會在這裡顯示 -->
+                </ul>
+                <p id="noDrawnCardsMessage" class="text-gray-500 text-sm mt-2">目前沒有已抽走的牌。</p>
+            </div>
+        </div>
+
+        <div id="loadingSpinner" class="loading-spinner mt-4"></div>
+    </div>
+
+    <script type="module">
+        // 從 Firebase.js 檔案導入 Firebase 服務實例
+        // 確保 Firebase.js 檔案與 team.html 在同一目錄下
+        import { auth, db, projectAppId } from './Firebase.js';
+        
+        // 其他 Firebase 模組仍然從 CDN 導入，因為它們不是由 Firebase.js 導出的
+        import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+
+        let userId = null;
+        let isAuthReady = false;
+
+        const cardDisplay = document.getElementById('cardDisplay');
+        const drawCardButton = document.getElementById('drawCardButton');
+        const resetGameButton = document.getElementById('resetGameButton');
+        const messageBox = document.getElementById('messageBox');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const playerNameInput = document.getElementById('playerNameInput');
+        const totalCardsInput = document.getElementById('totalCardsInput'); // New input for total cards
+        const redCardsCountDisplay = document.getElementById('redCardsCount'); // New display for red cards count
+        const blueCardsCountDisplay = document.getElementById('blueCardsCount'); // New display for blue cards count
+        const drawnCardsUl = document.getElementById('drawnCardsUl');
+        const noDrawnCardsMessage = document.getElementById('noDrawnCardsMessage');
+
+        // 預設總卡牌數量，紅藍各一半
+        const TOTAL_CARDS_COUNT = 20; // 這個變數現在將被 totalCardsInput 的值覆蓋
+
+        // 顯示訊息框
+        function showMessage(message, type = 'warning') {
+            messageBox.textContent = message;
+            messageBox.className = `message-box show ${type === 'error' ? 'bg-red-100 text-red-700 border-red-400' : 'bg-yellow-100 text-yellow-700 border-yellow-400'}`;
+            setTimeout(() => {
+                messageBox.className = 'message-box';
+            }, 5000); // Hide automatically after 5 seconds
+        }
+
+        // 顯示或隱藏載入指示器
+        function showLoading(show) {
+            if (show) {
+                loadingSpinner.classList.add('show');
+            } else {
+                loadingSpinner.classList.remove('show');
+            }
+        }
+
+        // Generate initial card deck
+        function generateInitialCards(totalCards) {
+            const cards = [];
+            let numRed = Math.ceil(totalCards / 2); // Number of red cards
+            let numBlue = totalCards - numRed; // Number of blue cards
+
+            // Add red cards
+            for (let i = 0; i < numRed; i++) {
+                if (i === 0) { // Mark the first red card as "key player"
+                    cards.push("紅隊卡 (關鍵玩家)");
+                } else {
+                    cards.push("紅隊卡");
+                }
+            }
+
+            // Add blue cards
+            for (let i = 0; i < numBlue; i++) {
+                cards.push("藍隊卡");
+            }
+
+            // Shuffle the cards
+            for (let i = cards.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [cards[i], cards[j]] = [cards[j], cards[i]];
+            }
+            return cards;
+        }
+
+        // Initialize Firebase (這裡只處理認證邏輯，db 和 auth 已經從 Firebase.js 導入)
+        async function initializeFirebase() {
+            try {
+                // 監聽認證狀態變化
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = userId;
+                        isAuthReady = true;
+                        console.log("Firebase Auth Ready. User ID:", userId);
+                        // 認證準備好後，開始監聽遊戲狀態
+                        setupGameListener();
+                    } else {
+                        // 如果沒有用戶，嘗試匿名登入
+                        try {
+                            await signInAnonymously(auth);
+                        } catch (error) {
+                            console.error("Firebase 認證失敗:", error);
+                            showMessage("無法登入 Firebase。請檢查您的連線。", "error");
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase 初始化失敗:", error);
+                showMessage("Firebase 初始化失敗。請檢查您的配置。", "error");
+            }
+        }
+
+        // Set up game state listener
+        function setupGameListener() {
+            if (!db || !isAuthReady) {
+                console.warn("Firestore or Auth not ready, cannot set up listener.");
+                return;
+            }
+
+            // 使用從 Firebase.js 導入的 projectAppId
+            const gameDocRef = doc(db, `/artifacts/${projectAppId}/public/data/cardGame/gameState`);
+
+            onSnapshot(gameDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    updateUI(data.availableCards, data.drawnCards);
+                } else {
+                    // If document does not exist, initialize game state
+                    initializeGameState();
+                }
+            }, (error) => {
+                console.error("Failed to listen for game state:", error);
+                showMessage("無法即時更新遊戲狀態。請嘗試重新整理。", "error");
+            });
+        }
+
+        // Initialize game state in Firestore
+        async function initializeGameState() {
+            showLoading(true);
+            const gameDocRef = doc(db, `/artifacts/${projectAppId}/public/data/cardGame/gameState`); // 使用 projectAppId
+            try {
+                const totalCards = parseInt(totalCardsInput.value, 10);
+                if (isNaN(totalCards) || totalCards < 2) {
+                    showMessage("總卡牌數量必須至少為 2。", "error");
+                    totalCardsInput.value = 20; // Reset to default
+                    showLoading(false);
+                    return;
+                }
+                const initialAvailableCards = generateInitialCards(totalCards); // Generate new card deck
+                await setDoc(gameDocRef, {
+                    availableCards: initialAvailableCards,
+                    drawnCards: []
+                });
+                console.log("遊戲狀態已初始化。");
+            } catch (e) {
+                console.error("Failed to initialize game state:", e);
+                showMessage("初始化遊戲狀態失敗。請稍後再試。", "error");
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Update UI elements
+        function updateUI(availableCards, drawnCards) {
+            // Update draw card button state
+            const hasDrawn = drawnCards.some(card => card.drawnByUserId === userId);
+            if (hasDrawn) {
+                drawCardButton.disabled = true;
+                drawCardButton.classList.add('button-disabled');
+                drawCardButton.classList.remove('button-primary');
+                drawCardButton.textContent = "你已經抽過牌了";
+            } else if (availableCards.length === 0) {
+                drawCardButton.disabled = true;
+                drawCardButton.classList.add('button-disabled');
+                drawCardButton.classList.remove('button-primary');
+                drawCardButton.textContent = "牌庫已空";
+            } else {
+                drawCardButton.disabled = false;
+                drawCardButton.classList.remove('button-disabled');
+                drawCardButton.classList.add('button-primary');
+                drawCardButton.textContent = "抽一張牌";
+            }
+
+            // Calculate and update red/blue card counts
+            let currentRedCards = 0;
+            let currentBlueCards = 0;
+
+            [...availableCards, ...drawnCards.map(card => card.cardName)].forEach(cardName => {
+                if (cardName.includes("紅隊卡")) {
+                    currentRedCards++;
+                } else if (cardName.includes("藍隊卡")) {
+                    currentBlueCards++;
+                }
+            });
+
+            redCardsCountDisplay.textContent = currentRedCards;
+            blueCardsCountDisplay.textContent = currentBlueCards;
+
+
+            // Update drawn cards list
+            drawnCardsUl.innerHTML = '';
+            if (drawnCards.length > 0) {
+                noDrawnCardsMessage.style.display = 'none';
+                drawnCards.forEach(card => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span class="drawn-card-name">${card.cardName}</span>
+                        <span class="drawn-by-user">由 <span class="font-semibold">${card.drawnByName || card.drawnByUserId.substring(0, 8) + '...'}</span> 抽出</span>
+                    `;
+                    drawnCardsUl.appendChild(li);
+                });
+            } else {
+                noDrawnCardsMessage.style.display = 'block';
+            }
+        }
+
+        // Draw card logic
+        drawCardButton.addEventListener('click', async () => {
+            if (!isAuthReady || !userId) {
+                showMessage("認證尚未完成，請稍候。", "warning");
+                return;
+            }
+
+            let playerName = playerNameInput.value.trim();
+            if (!playerName) {
+                playerName = "匿名玩家"; // If player doesn't enter a name, use a default
+            }
+
+            drawCardButton.disabled = true;
+            showLoading(true);
+            messageBox.className = 'message-box'; // Hide previous messages
+
+            const gameDocRef = doc(db, `/artifacts/${projectAppId}/public/data/cardGame/gameState`); // 使用 projectAppId
+
+            try {
+                // Use transaction to ensure atomic operation
+                const docSnap = await getDoc(gameDocRef);
+                if (!docSnap.exists()) {
+                    showMessage("遊戲狀態不存在，正在初始化...", "warning");
+                    await initializeGameState(); // Re-initialize
+                    showLoading(false);
+                    drawCardButton.disabled = false;
+                    return;
+                }
+
+                const data = docSnap.data();
+                let currentAvailableCards = data.availableCards || [];
+                let currentDrawnCards = data.drawnCards || [];
+
+                // Check if player has already drawn a card
+                const hasDrawn = currentDrawnCards.some(card => card.drawnByUserId === userId);
+                if (hasDrawn) {
+                    showMessage("你已經抽過牌了，每位玩家只能抽一張。", "warning");
+                    showLoading(false);
+                    updateUI(currentAvailableCards, currentDrawnCards); // Ensure UI state is correct
+                    return;
+                }
+
+                // Check if card deck is empty
+                if (currentAvailableCards.length === 0) {
+                    showMessage("牌庫已空，無法再抽牌了。", "warning");
+                    showLoading(false);
+                    updateUI(currentAvailableCards, currentDrawnCards); // Ensure UI state is correct
+                    return;
+                }
+
+                // Randomly select a card
+                const randomIndex = Math.floor(Math.random() * currentAvailableCards.length);
+                const drawnCard = currentAvailableCards[randomIndex];
+
+                // Remove from available cards and add to drawn cards
+                currentAvailableCards.splice(randomIndex, 1);
+                currentDrawnCards.push({
+                    cardName: drawnCard,
+                    drawnByUserId: userId,
+                    drawnByName: playerName, // Store player name
+                    timestamp: new Date().toISOString()
+                });
+
+                // Update Firestore
+                await setDoc(gameDocRef, {
+                    availableCards: currentAvailableCards,
+                    drawnCards: currentDrawnCards
+                });
+
+                // Update UI to display the drawn card
+                cardDisplay.textContent = drawnCard;
+                cardDisplay.classList.add('drawn');
+                setTimeout(() => {
+                    cardDisplay.classList.remove('drawn');
+                }, 1000); // Animation effect
+
+                showMessage(`你抽到了：${drawnCard}`, "success");
+
+            } catch (error) {
+                console.error("Failed to draw card:", error);
+                showMessage("抽牌失敗，請重試。", "error");
+            } finally {
+                showLoading(false);
+                // UI update will be handled by onSnapshot, so no need to call updateUI manually here
+            }
+        });
+
+        // Reset game logic
+        resetGameButton.addEventListener('click', async () => {
+            if (!isAuthReady || !userId) {
+                showMessage("認證尚未完成，請稍候。", "warning");
+                return;
+            }
+
+            resetGameButton.disabled = true;
+            showLoading(true);
+            messageBox.className = 'message-box'; // Hide previous messages
+
+            const gameDocRef = doc(db, `/artifacts/${projectAppId}/public/data/cardGame/gameState`); // 使用 projectAppId
+
+            try {
+                const totalCards = parseInt(totalCardsInput.value, 10);
+                if (isNaN(totalCards) || totalCards < 2) {
+                    showMessage("總卡牌數量必須至少為 2。", "error");
+                    totalCardsInput.value = 20; // Reset to default
+                    showLoading(false);
+                    resetGameButton.disabled = false;
+                    return;
+                }
+                // Reset card deck to initial state and clear drawn cards
+                const initialAvailableCards = generateInitialCards(totalCards); // Generate new card deck
+                await setDoc(gameDocRef, {
+                    availableCards: initialAvailableCards,
+                    drawnCards: []
+                });
+                cardDisplay.textContent = "點擊抽卡";
+                showMessage("遊戲已重置！", "success");
+            } catch (error) {
+                console.error("Failed to reset game:", error);
+                showMessage("重置遊戲失敗，請重試。", "error");
+            } finally {
+                showLoading(false);
+                resetGameButton.disabled = false;
+            }
+        });
+
+        // 頁面載入時初始化 Firebase
+        window.onload = initializeFirebase;
+    </script>
+</body>
+</html>

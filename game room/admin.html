@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星杯傳說 - 房間管理員後台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .admin-section {
+            background-color: #2d3748; /* bg-gray-800 */
+            border-left: 4px solid #f6e05e; /* border-yellow-400 */
+        }
+        .record-entry:hover {
+            background-color: #4a5568; /* bg-gray-700 on hover */
+        }
+    </style>
+    <script>
+        // --- 管理員設定 ---
+        const ADMIN_NAMES = ['admin', 'manager', 'GM']; 
+        let adminName = '';
+        let currentRoomId = null;
+
+        // --- 模擬多個房間的資料 ---
+        const MOCK_ROOMS = {
+            'room_101': {
+                status: '進行中',
+                gameStatus: {
+                    gamePhase: '回合2',
+                    turnPlayerId: 'p_101_2',
+                    redMorale: 12,
+                    blueMorale: 15,
+                    redTeam: { redGems: 3, blueGems: 1, chalice: 0, gemLimit: 5 },
+                    blueTeam: { redGems: 1, blueGems: 3, chalice: 1, gemLimit: 5 },
+                },
+                players: [
+                    { id: 'p_101_1', name: '玩家A', team: '紅隊', character: '騎士', hand: ['c1', 'c2'] },
+                    { id: 'p_101_2', name: '玩家B', team: '紅隊', character: '魔法師', hand: ['c3', 'c4', 'c5'] },
+                    { id: 'p_101_3', name: '玩家C', team: '藍隊', character: '牧師', hand: ['c6'] },
+                    { id: 'p_101_4', name: '玩家D', team: '藍隊', character: '刺客', hand: ['c7', 'c8'] },
+                ],
+                gameRecords: [
+                    { playerName: '玩家B', action: '發動技能', timestamp: new Date(Date.now() - 3000) },
+                    { playerName: '玩家A', action: '抽取卡片', timestamp: new Date(Date.now() - 2000) },
+                ],
+                chatRecords: [
+                    { playerName: '玩家C', message: '我準備好了', timestamp: new Date(Date.now() - 1500) },
+                    { playerName: '玩家D', message: '你們要小心了', timestamp: new Date(Date.now() - 500) },
+                ]
+            },
+            'room_102': {
+                status: '已完賽',
+                gameStatus: {
+                    gamePhase: '遊戲結束',
+                    turnPlayerId: '-',
+                    redMorale: 0,
+                    blueMorale: 18,
+                    redTeam: { redGems: 5, blueGems: 5, chalice: 2, gemLimit: 5 },
+                    blueTeam: { redGems: 5, blueGems: 5, chalice: 3, gemLimit: 5 },
+                },
+                players: [
+                    { id: 'p_102_1', name: '玩家E', team: '紅隊', character: '騎士', hand: [] },
+                    { id: 'p_102_2', name: '玩家F', team: '藍隊', character: '聖騎士', hand: [] },
+                ],
+                gameRecords: [],
+                chatRecords: []
+            },
+            'room_103': {
+                status: '進行中',
+                gameStatus: {
+                    gamePhase: '設置中',
+                    turnPlayerId: '-',
+                    redMorale: 15,
+                    blueMorale: 15,
+                    redTeam: { redGems: 0, blueGems: 0, chalice: 0, gemLimit: 5 },
+                    blueTeam: { redGems: 0, blueGems: 0, chalice: 0, gemLimit: 5 },
+                },
+                players: [
+                    { id: 'p_103_1', name: '玩家G', team: '紅隊', character: '法師', hand: ['c1'] },
+                ],
+                gameRecords: [],
+                chatRecords: []
+            }
+        };
+
+        let intervalId = null; // 用於儲存 setInterval 的 ID，以便清除
+
+        // 1. 管理員名稱驗證
+        const authenticateAdmin = () => {
+            const inputName = prompt("請輸入管理員名稱：");
+            if (inputName && ADMIN_NAMES.includes(inputName.toLowerCase())) {
+                adminName = inputName;
+                console.log(`管理員 ${adminName} 驗證成功！`);
+                showRoomList(); // 驗證成功後，顯示房間列表
+            } else {
+                alert("管理員名稱錯誤或未輸入，無法進入後台。");
+                renderError('權限不足或名稱錯誤，請重新載入頁面。');
+            }
+        };
+
+        // 2. 顯示房間列表的介面
+        const showRoomList = () => {
+            if (intervalId) clearInterval(intervalId); // 切換頁面時停止自動更新
+            currentRoomId = null; // 清除當前房間 ID
+            const rooms = Object.keys(MOCK_ROOMS);
+            const adminDashboard = document.getElementById('admin-dashboard');
+
+            adminDashboard.innerHTML = `
+                <div class="bg-gray-900 min-h-screen text-white p-6 md:p-10">
+                    <h1 class="text-4xl font-bold text-yellow-400 mb-2">所有遊戲房間</h1>
+                    <p class="text-md text-gray-400 mb-6">管理員: <span class="font-bold">${adminName}</span></p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${rooms.map(roomId => `
+                            <div class="admin-section p-6 rounded-xl shadow-lg flex flex-col justify-between">
+                                <div>
+                                    <h2 class="text-2xl font-bold mb-2">${roomId}</h2>
+                                    <p class="mb-2">
+                                        <strong class="font-bold">狀態:</strong> 
+                                        <span class="font-bold ${MOCK_ROOMS[roomId].status === '進行中' ? 'text-green-400' : 'text-red-400'}">${MOCK_ROOMS[roomId].status}</span>
+                                    </p>
+                                    <p class="mb-4"><strong>玩家人數:</strong> ${MOCK_ROOMS[roomId].players.length} 人</p>
+                                </div>
+                                <div class="flex justify-end space-x-2">
+                                    <button onclick="viewRoom('${roomId}')" class="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 transition">查看</button>
+                                    <button onclick="deleteRoom('${roomId}')" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition">刪除</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        };
+
+        // 3. 顯示特定房間詳細資訊的介面
+        const viewRoom = (roomId) => {
+            currentRoomId = roomId;
+            const roomData = MOCK_ROOMS[roomId];
+            if (!roomData) {
+                return renderError('此房間不存在或已被刪除。');
+            }
+
+            renderRoomDetails(roomData); // 首次渲染
+            
+            // 啟動定時更新，只針對當前房間
+            intervalId = setInterval(() => {
+                // 這裡可以實現模擬數據的動態更新，但為了簡潔，我們先假設數據不變
+                // 在實際的 Firebase 版本中，這裡會是 onSnapshot 監聽
+                // renderRoomDetails(MOCK_ROOMS[currentRoomId]);
+            }, 2000);
+        };
+
+        const renderRoomDetails = (roomData) => {
+            const adminDashboard = document.getElementById('admin-dashboard');
+
+            adminDashboard.innerHTML = `
+                <div class="bg-gray-900 min-h-screen text-white p-6 md:p-10">
+                    <button onclick="showRoomList()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition mb-6">&larr; 返回房間列表</button>
+                    <h1 class="text-4xl font-bold text-yellow-400 mb-2">房間詳細資訊 - ${currentRoomId}</h1>
+                    <p class="text-md text-gray-400 mb-6">管理員: <span class="font-bold">${adminName}</span></p>
+
+                    <!-- 總覽區塊 -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="admin-section p-6 rounded-xl shadow-lg">
+                            <h2 class="text-2xl font-bold text-yellow-400 mb-4">遊戲狀態</h2>
+                            <p><strong>當前階段:</strong> ${roomData.gameStatus.gamePhase}</p>
+                            <p><strong>輪到玩家:</strong> ${roomData.gameStatus.turnPlayerId !== '-' ? roomData.players.find(p => p.id === roomData.gameStatus.turnPlayerId)?.name : '等待中'}</p>
+                            <p><strong>紅隊士氣:</strong> ${roomData.gameStatus.redMorale}</p>
+                            <p><strong>藍隊士氣:</strong> ${roomData.gameStatus.blueMorale}</p>
+                            <p><strong>總玩家數:</strong> ${roomData.players.length}</p>
+                        </div>
+                        <div class="admin-section p-6 rounded-xl shadow-lg">
+                            <h2 class="text-2xl font-bold text-yellow-400 mb-4">紅隊戰績</h2>
+                            <p><strong>紅寶石:</strong> ${roomData.gameStatus.redTeam.redGems}</p>
+                            <p><strong>藍寶石:</strong> ${roomData.gameStatus.redTeam.blueGems}</p>
+                            <p><strong>星杯數:</strong> ${roomData.gameStatus.redTeam.chalice}</p>
+                            <p><strong>寶石上限:</strong> ${roomData.gameStatus.redTeam.gemLimit}</p>
+                        </div>
+                        <div class="admin-section p-6 rounded-xl shadow-lg">
+                            <h2 class="text-2xl font-bold text-yellow-400 mb-4">藍隊戰績</h2>
+                            <p><strong>紅寶石:</strong> ${roomData.gameStatus.blueTeam.redGems}</p>
+                            <p><strong>藍寶石:</strong> ${roomData.gameStatus.blueTeam.blueGems}</p>
+                            <p><strong>星杯數:</strong> ${roomData.gameStatus.blueTeam.chalice}</p>
+                            <p><strong>寶石上限:</strong> ${roomData.gameStatus.blueTeam.gemLimit}</p>
+                        </div>
+                    </div>
+
+                    <!-- 玩家清單區塊 -->
+                    <div class="admin-section p-6 rounded-xl shadow-lg mb-8">
+                        <h2 class="text-2xl font-bold text-yellow-400 mb-4">玩家清單</h2>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full table-auto text-sm">
+                                <thead>
+                                    <tr class="bg-gray-700">
+                                        <th class="px-4 py-2 text-left">ID</th>
+                                        <th class="px-4 py-2 text-left">名稱</th>
+                                        <th class="px-4 py-2 text-left">陣營</th>
+                                        <th class="px-4 py-2 text-left">角色</th>
+                                        <th class="px-4 py-2 text-left">手牌數</th>
+                                        <th class="px-4 py-2 text-left">動作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="player-list-body">
+                                    ${roomData.players.map(player => `
+                                        <tr class="border-b border-gray-600 hover:bg-gray-700">
+                                            <td class="px-4 py-2">${player.id}</td>
+                                            <td class="px-4 py-2">${player.name}</td>
+                                            <td class="px-4 py-2">${player.team}</td>
+                                            <td class="px-4 py-2">${player.character}</td>
+                                            <td class="px-4 py-2">${player.hand.length}</td>
+                                            <td class="px-4 py-2">
+                                                <button onclick="kickPlayer('${player.id}')" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition">踢除</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 遊戲紀錄與聊天紀錄 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="admin-section p-6 rounded-xl shadow-lg" id="game-records-container">
+                            <h2 class="text-2xl font-bold text-yellow-400 mb-4">遊戲動作紀錄</h2>
+                            <div id="game-records" class="space-y-2 max-h-96 overflow-y-auto pr-2">
+                                ${roomData.gameRecords.map(record => `
+                                    <div class="bg-gray-800 p-3 rounded-lg text-sm record-entry">
+                                        <p><strong class="text-yellow-300">[${record.timestamp ? record.timestamp.toLocaleTimeString() : 'N/A'}]</strong> <strong class="text-red-300">${record.playerName}</strong> 執行了 <span class="text-green-300">"${record.action}"</span></p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <div class="admin-section p-6 rounded-xl shadow-lg" id="chat-records-container">
+                            <h2 class="text-2xl font-bold text-yellow-400 mb-4">聊天紀錄</h2>
+                            <div id="chat-records" class="space-y-2 max-h-96 overflow-y-auto pr-2">
+                                ${roomData.chatRecords.map(chat => `
+                                    <div class="bg-gray-800 p-3 rounded-lg text-sm record-entry">
+                                        <p><strong class="text-blue-300">[${chat.timestamp ? chat.timestamp.toLocaleTimeString() : 'N/A'}]</strong> <strong class="text-yellow-300">${chat.playerName}:</strong> ${chat.message}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+        
+        // 4. 刪除房間的模擬功能
+        const deleteRoom = (roomId) => {
+            if (confirm(`確定要刪除房間 ID: ${roomId} 嗎？此操作不可逆！`)) {
+                console.log(`模擬刪除房間 ID: ${roomId}`);
+                delete MOCK_ROOMS[roomId];
+                alert(`房間 ${roomId} 已被刪除 (離線模式)。`);
+                showRoomList(); // 刪除後返回房間列表
+            }
+        };
+
+        // 5. 踢除玩家的模擬功能
+        const kickPlayer = (playerId) => {
+            if (confirm(`確定要踢除玩家 ID: ${playerId} 嗎？`)) {
+                console.log(`在離線模式下，無法執行踢除操作。已模擬踢除玩家 ID: ${playerId}`);
+                alert(`在離線模式下，無法執行踢除操作。已模擬踢除玩家 ID: ${playerId}`);
+            }
+        };
+
+        // 6. 錯誤訊息渲染
+        const renderError = (message) => {
+            if (intervalId) clearInterval(intervalId);
+            document.getElementById('admin-dashboard').innerHTML = `
+                <div class="flex items-center justify-center min-h-screen">
+                    <div class="text-center p-8 bg-gray-800 rounded-lg shadow-lg text-red-500">
+                        <p class="mt-4 text-xl">${message}</p>
+                    </div>
+                </div>
+            `;
+        };
+
+        // 將重要函數暴露到全局，以便 HTML 中的 onclick 能夠調用
+        window.showRoomList = showRoomList;
+        window.viewRoom = viewRoom;
+        window.deleteRoom = deleteRoom;
+        window.kickPlayer = kickPlayer;
+
+        // 頁面載入時先進行管理員驗證
+        document.addEventListener('DOMContentLoaded', () => {
+            authenticateAdmin();
+        });
+    </script>
+</head>
+<body id="admin-dashboard" class="bg-gray-900 text-gray-200">
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="text-center p-8 bg-gray-800 rounded-lg shadow-lg">
+            <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yellow-500 mx-auto"></div>
+            <p class="mt-4 text-xl">正在進行管理員驗證...</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,26 @@
+[
+  {
+    "character_name": "仲裁者",
+    "abilities": {
+      "passive": "遊戲開始時額外獲得1點星鑽。",
+      "active": "棄掉一張手牌，獲得2點星鑽。"
+    },
+    "special_cards": [1, 2],
+    "initial_tokens": {
+      "yellow": 1,
+      "blue": 1
+    }
+  },
+  {
+    "character_name": "守護者",
+    "abilities": {
+      "passive": "每個回合開始時，所有友方單位獲得1點護甲。",
+      "active": "消耗2點能量，對所有敵方單位造成1點傷害。"
+    },
+    "special_cards": [3, 4],
+    "initial_tokens": {
+      "yellow": 2,
+      "blue": 0
+    }
+  }
+]
