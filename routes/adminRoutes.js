@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const Room = require('../models/Room'); // 引入 Room 模型
-const { ADMIN_LIST } = require('../config'); // 假設您有一個 config 檔案來管理管理員列表
+const { ADMIN_LIST } = require('../config.js'); // 假設您有一個 config 檔案來管理管理員列表
 
 // 管理員移除玩家路由
 router.post('/remove-player', async (req, res) => {
