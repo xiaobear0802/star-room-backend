@@ -9,7 +9,7 @@ const cors = require('cors');
 const path = require('path'); // 引入 path 模組來處理靜態檔案路徑
 
 // 引入自定義的路由
-const adminRoutes = require('./routes/adminRoutes'); // 假設 adminRoutes.js 存在
+//const adminRoutes = require('./routes/adminRoutes'); // 假設 adminRoutes.js 存在
 const roomRoutes = require('./routes/roomRoutes');
 const messageRoutes = require('./routes/messageRoutes'); // 假設 messageRoutes.js 存在
 const userRoutes = require('./routes/userRoutes'); // 假設 userRoutes.js 存在
