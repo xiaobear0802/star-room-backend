@@ -1,22 +1,15 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>星杯傳說 - 房間系統</title>
-    <!-- 引入 Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* 設定 Inter 字體和基本背景 */
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f0f2f5; /* 淺灰色背景 */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh; /* 確保內容垂直居中 */
-            margin: 0;
         }
         /* 自定義樣式，用於輸入框的焦點效果 */
         .input-focus-style:focus {
@@ -39,11 +32,51 @@
         .room-list-container::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
+        /* 聊天室樣式，從第二個檔案整合進來 */
+        .chat-container {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 400px; /* 聊天室最大寬度 */
+            margin-top: 24px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            height: 500px; /* 聊天室高度 */
+        }
+        #messages {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        #messages > li {
+            padding: 0.5rem 1rem;
+        }
+        #messages > li:nth-child(odd) {
+            background: #f8f9fa; /* 淺色背景 */
+        }
+        #chat-form {
+            display: flex;
+            margin-top: 1rem;
+        }
+        #chat-input {
+            border: 1px solid #ccc;
+            padding: 0.5rem 1rem;
+            flex-grow: 1;
+            border-radius: 2rem;
+            margin-right: 0.5rem;
+        }
+        #chat-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
     <div class="flex flex-col lg:flex-row gap-6 w-full max-w-5xl mx-auto">
-        <!-- 左側卡片: 星杯傳說 房間系統 -->
         <div class="bg-white p-6 rounded-lg shadow-xl flex-1 border border-gray-200">
             <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">星杯傳說 房間系統</h1>
 
@@ -82,7 +115,6 @@
             </div>
         </div>
 
-        <!-- 右側卡片: 加入一個房間 & 已創建房間列表 -->
         <div class="bg-white p-6 rounded-lg shadow-xl flex-1 border border-gray-200 flex flex-col">
             <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">加入一個房間</h2>
 
@@ -98,16 +130,21 @@
                        class="input-focus-style shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight transition duration-200">
             </div>
 
-            <!-- 已創建房間列表 -->
             <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center mt-auto pt-6 border-t border-gray-200">已創建房間列表</h2>
             <div id="roomListContainer" class="flex-1 overflow-y-auto pr-2 room-list-container">
-                <!-- 房間列表將在這裡動態載入 -->
                 <p class="text-gray-500 text-center">目前沒有房間。</p>
             </div>
         </div>
     </div>
 
-    <!-- 提示訊息彈窗 (隱藏狀態) -->
+    <div class="chat-container hidden" id="chat-container">
+        <ul id="messages"></ul>
+        <form id="chat-form" action="">
+            <input id="chat-input" autocomplete="off" placeholder="輸入訊息..." />
+            <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline">發送</button>
+        </form>
+    </div>
+
     <div id="messageModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center hidden z-50">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-sm text-center">
             <h3 class="text-xl font-bold text-gray-800 mb-4">提示</h3>
@@ -118,57 +155,7 @@
         </div>
     </div>
 
-    <!-- 引入 Socket.IO 客戶端庫 -->
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-    <!-- 引入您的客戶端腳本 -->
+    <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>Socket.IO chat</title>
-    <style>
-      body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-
-      #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
-      #input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
-      #input:focus { outline: none; }
-      #form > button { background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
-
-      #messages { list-style-type: none; margin: 0; padding: 0; }
-      #messages > li { padding: 0.5rem 1rem; }
-      #messages > li:nth-child(odd) { background: #efefef; }
-    </style>
-  </head>
-  <body>
-    <ul id="messages"></ul>
-    <form id="form" action="">
-      <input id="input" autocomplete="off" /><button>Send</button>
-    </form>
-  </body>
-</html>
-<script src="/socket.io/socket.io.js"></script>
-<script>
-  const socket = io();
-
-  const form = document.getElementById('form');
-  const input = document.getElementById('input');
-  const messages = document.getElementById('messages');
-
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (input.value) {
-      socket.emit('chat message', input.value);
-      input.value = '';
-    }
-  });
-
-  socket.on('chat message', (msg) => {
-    const item = document.createElement('li');
-    item.textContent = msg;
-    messages.appendChild(item);
-    window.scrollTo(0, document.body.scrollHeight);
-  });
-</script>

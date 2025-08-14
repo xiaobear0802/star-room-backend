@@ -1,22 +1,26 @@
 // 引入所有必要的模組
 const express = require('express');
-const app = require('express')();
 const http = require('http');
-const server = require('http').createServer(app);
 const { Server } = require("socket.io");
 const mongoose = require('mongoose');
 const path = require('path');
 const cors = require('cors');
-const io = require('socket.io')(server);
-    console.log('有使用者連線');
-require('dotenv').config();
-  server.listen(3000, () => {
-  console.log('伺服器運行在埠口 3000');
-});
+const express = require('express');
+const app = express();
+const server = require('http').createServer(app);
+const io = require('socket.io')(server); // <-- 關鍵步驟
+
+// ... 你的 Express 路由 ...
+
 io.on('connection', (socket) => {
   console.log('有使用者連線');
-  // ... 處理 Socket 事件 ...
 });
+
+// 最後用 server.listen() 啟動伺服器
+server.listen(3000, () => {
+  console.log('伺服器運行在埠口 3000');
+});
+  // ... 處理 Socket 事件 ...
 // ============================================================================
 // 伺服器設定
 

@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const createUsernameInput = document.getElementById('createUsernameInput');
     const createRoomNameInput = document.getElementById('createRoomNameInput');
     const createRoomPasswordInput = document.getElementById('createRoomPasswordInput'); // 新增密碼輸入
-    const isPublicRoomCheckbox = document.getElementById('isPublicRoomCheckbox');     // 新增公開房間核選方塊
+    const isPublicRoomCheckbox = document.getElementById('isPublicRoomCheckbox');      // 新增公開房間核選方塊
     const createRoomButton = document.getElementById('createRoomButton');
     const enterRoomButton = document.getElementById('enterRoomButton');
 
@@ -20,8 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalConfirmButton = document.getElementById('modalConfirmButton');
 
     // 連接到 Socket.IO 伺服器
-    // 請根據您的後端服務的實際 URL 進行調整
-    const socket = io('http://localhost:3000'); // 替換為您的後端 URL (Render 部署時請改為 Render URL)
+    // 您的後端服務的實際 URL
+    const socket = io('http://localhost:3000'); // 這行程式碼已經存在於您的檔案中，且位置正確。
 
     let currentRoom = null;
     let currentUsername = null;
