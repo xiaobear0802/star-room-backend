@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 連接到 Socket.IO 伺服器
     // 請根據您的後端服務的實際 URL 進行調整
-    const socket = io('http://localhost:3000'); // 替換為您的後端 URL (Render 部署時請改為 Render URL)
+    const socket = io('http://localhost:10000'); // 替換為您的後端 URL (Render 部署時請改為 Render URL)
 
     let currentRoom = null;
     let currentUsername = null;
