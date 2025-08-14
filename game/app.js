@@ -8,7 +8,7 @@ const path = require('path');
 
 // 伺服器設定
 const app = express();
-const PORT = 10000;
+const PORT = 3000;
 
 // 中介軟體，用於解析 JSON 格式的請求體
 app.use(express.json());
