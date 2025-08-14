@@ -1,28 +1,23 @@
 const express = require('express');
+const app = express();
 const http = require('http');
-const { Server } = require('socket.io');
+const server = http.createServer(app);
+const { Server } = require("socket.io");
 const mongoose = require('mongoose');
-const cors = require('cors');
 const path = require('path');
-
-// Load environment variables from a .env file
 require('dotenv').config();
 
-// Create the Express app and HTTP server
-const app = express();
-const server = http.createServer(app);
-
-// Use CORS middleware for Express
-app.use(cors());
-// Parse incoming JSON requests
+// 設定 Express 中間件
+app.use(require('cors')());
 app.use(express.json());
 
-// Set up Socket.IO server
+// 設定 Socket.IO 伺服器，包含 CORS 設定
+// 這裡只初始化一次
 const io = new Server(server, {
-    cors: {
-        origin: "*", // Allow all origins for development
-        methods: ["GET", "POST"]
-    }
+  cors: {
+    origin: "*", // 允許所有來源，在開發環境中很有用
+    methods: ["GET", "POST"]
+  }
 });
 
 // Connect to MongoDB

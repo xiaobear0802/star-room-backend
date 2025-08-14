@@ -1,7 +1,4 @@
-// socketHandlers.js
 
-// 用於儲存所有活躍房間的物件
-// 鍵是 roomName，值是房間的詳細資訊
 const rooms = {};
 
 module.exports = function(io) {
