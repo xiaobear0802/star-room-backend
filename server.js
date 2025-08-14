@@ -1,34 +1,54 @@
-// server.js
-
-// 引入必要的模組
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path'); // 引入 path 模組來處理靜態檔案路徑
+const path = require('path');
 
-// 引入自定義的路由
-//const adminRoutes = require('./routes/adminRoutes'); // 假設 adminRoutes.js 存在
-const roomRoutes = require('./routes/roomRoutes');
-const messageRoutes = require('./routes/messageRoutes'); // 假設 messageRoutes.js 存在
-const userRoutes = require('./routes/userRoutes'); // 假設 userRoutes.js 存在
+// Load environment variables from a .env file
+require('dotenv').config();
 
-// 引入 Socket.IO 初始化函式
-const initializeSocketIO = require('./socketHandlers');
-
-// 創建 Express 應用程式實例
+// Create the Express app and HTTP server
 const app = express();
-// 創建 HTTP 伺服器，將 Express 應用程式傳入
 const server = http.createServer(app);
-// 初始化 Socket.IO，並將 HTTP 伺服器傳入
+
+// Use CORS middleware for Express
+app.use(cors());
+// Parse incoming JSON requests
+app.use(express.json());
+
+// Set up Socket.IO server
 const io = new Server(server, {
     cors: {
-        origin: "*", // 允許所有來源，在生產環境中應限制為您的前端網域 (例如: 'https://your-frontend-domain.com')
+        origin: "*", // Allow all origins for development
         methods: ["GET", "POST"]
     }
 });
 
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('Successfully connected to MongoDB.'))
+    .catch(err => console.error('Connection error', err));
+
+// Serve static files from the 'public' directory
+// This is where your front-end HTML, CSS, and JS files would be
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Use your custom API routes
+// The path parameter defines the base URL for these routes
+app.use('/api/rooms', require('./routes/roomRoutes'));
+app.use('/api/messages', require('./routes/messageRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+
+// Pass the Socket.IO instance to your handlers
+require('./socketHandlers')(io);
+
+// Define the port from environment variables or use a default
+
+// Start the server
+server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
 // 使用 CORS 中介軟體
 app.use(cors());
 
