@@ -1,14 +1,22 @@
 // 引入所有必要的模組
 const express = require('express');
-const app = express();
+const app = require('express')();
 const http = require('http');
-const server = http.createServer(app);
+const server = require('http').createServer(app);
 const { Server } = require("socket.io");
 const mongoose = require('mongoose');
 const path = require('path');
 const cors = require('cors');
+const io = require('socket.io')(server);
+    console.log('有使用者連線');
 require('dotenv').config();
-
+  server.listen(3000, () => {
+  console.log('伺服器運行在埠口 3000');
+});
+io.on('connection', (socket) => {
+  console.log('有使用者連線');
+  // ... 處理 Socket 事件 ...
+});
 // ============================================================================
 // 伺服器設定
 
@@ -17,12 +25,6 @@ app.use(cors());
 app.use(express.json());
 
 // 設定 Socket.IO 伺服器，包含 CORS 設定
-const io = new Server(server, {
-    cors: {
-        origin: "*", // 允許所有來源，在開發環境中很有用
-        methods: ["GET", "POST"]
-    }
-});
 
 // ============================================================================
 // 連線到 MongoDB

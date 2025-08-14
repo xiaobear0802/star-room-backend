@@ -198,3 +198,4 @@ document.addEventListener('DOMContentLoaded', () => {
         createRoomPasswordInput.placeholder = '公開房間無需密碼';
     }
 });
+const socket = io('http://localhost:3000');
