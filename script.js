@@ -199,3 +199,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 const socket = io('http://localhost:3000');
+// 1. 建立 Socket.IO 連線
+// 如果前端和後端在同一個來源（網域、埠口），可以留空
+// const socket = io();
+
+// 2. 獲取 HTML 元素
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const messages = document.getElementById('messages');
+
+// 3. 監聽表單提交事件
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (input.value) {
+    // 4. 當用戶輸入訊息並提交時，發送自定義事件 'chatMessage'
+    socket.emit('chatMessage', input.value);
+    input.value = '';
+  }
+});
+
+// 5. 監聽後端廣播的自定義事件 'chatMessage'
+socket.on('chatMessage', (msg) => {
+  const item = document.createElement('li');
+  item.textContent = msg;
+  messages.appendChild(item);
+  window.scrollTo(0, document.body.scrollHeight);
+});
