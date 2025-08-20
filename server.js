@@ -1,4 +1,4 @@
-// 引入所有必要的模組
+// server.js - 一個單一且正確的版本
 const express = require('express');
 const app = express();
 const http = require('http');
@@ -9,62 +9,42 @@ const path = require('path');
 const cors = require('cors');
 require('dotenv').config();
 
-// ============================================================================
-// 伺服器設定
-
-// 設定 Express 中介軟體
+// Express 中介軟體設定
 app.use(cors());
 app.use(express.json());
 
-// 設定 Socket.IO 伺服器，包含 CORS 設定
+// 帶有 CORS 設定的 Socket.IO 伺服器設定
 const io = new Server(server, {
     cors: {
-        origin: "*", // 允許所有來源，在開發環境中很有用
+        origin: "*",
         methods: ["GET", "POST"]
     }
 });
 
-// ============================================================================
-// 連線到 MongoDB
+// MongoDB 連線
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/star-room';
-
 mongoose.connect(MONGODB_URI)
     .then(() => console.log('MongoDB 連線成功！'))
     .catch(err => {
         console.error('MongoDB 連線錯誤:', err);
-        process.exit(1); // 連線失敗則退出應用程式
+        process.exit(1);
     });
 
-// ============================================================================
-// 路由設定
-
-// 引入並掛載您的 API 路由
+// API 路由
 const roomRoutes = require('./routes/roomRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const userRoutes = require('./routes/userRoutes');
-// 假設您有 adminRoutes
-// const adminRoutes = require('./routes/adminRoutes');
-
 app.use('/api/rooms', roomRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
-// app.use('/api/admin', adminRoutes);
 
-// ============================================================================
 // Socket.IO 處理器
-
-// 引入 Socket.IO 處理邏輯，並將 io 實例傳遞給它
-// 假設 './socketHandlers.js' 導出一個函數
 require('./socketHandlers')(io);
 
-// ============================================================================
-// 靜態檔案和前端路由
-
-// 提供靜態檔案服務 (例如 index.html, script.js, style.css)
+// 從 'public' 資料夾服務靜態檔案
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 處理前端路由（SPA）
-// 對於任何未匹配的路由，都返回 index.html
+// 用於前端路由的 SPA 備用方案
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'), err => {
         if (err) {
@@ -74,16 +54,8 @@ app.get('*', (req, res) => {
     });
 });
 
-// ============================================================================
-// 伺服器啟動
-
+// 啟動伺服器
 const PORT = process.env.PORT || 3000;
-
 server.listen(PORT, () => {
     console.log(`伺服器運行在埠口 ${PORT}`);
-    // 這裡可以放一些啟動時的初始化邏輯，例如管理員列表的印出
-    const ADMIN_LIST = process.env.ADMIN_LIST
-        ? process.env.ADMIN_LIST.split(',').map(name => name.trim())
-        : ['DM', 'xiaobear', 'babybear']; // 更改這裡
-    console.log('伺服器啟動時：管理員列表為', ADMIN_LIST);
 });

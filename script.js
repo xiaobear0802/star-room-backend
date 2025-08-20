@@ -225,3 +225,24 @@ socket.on('chatMessage', (msg) => {
   messages.appendChild(item);
   window.scrollTo(0, document.body.scrollHeight);
 });
+// script.js
+// 這行程式碼會連線到服務當前網頁的伺服器。
+// 如果你在 http://localhost:3000 上服務網頁，它就會連線到那裡。
+// 如果你在 Firebase 上服務，你需要讓它指向後端的 URL。
+
+// 現在，你可以使用 'socket' 物件來發送和監聽與你的房間系統相關的事件。
+// 例如：
+//
+// 監聽房間列表更新
+socket.on('updateRoomList', (rooms) => {
+    console.log('收到更新的房間列表:', rooms);
+    // 更新前端頁面上的房間列表
+});
+
+// 點擊創建房間按鈕時
+document.getElementById('createRoomButton').addEventListener('click', () => {
+    const roomName = document.getElementById('roomNameInput').value;
+    const username = document.getElementById('usernameInput').value;
+    // 發送事件到後端
+    socket.emit('createRoom', { roomName, username, isPublic: true });
+});
